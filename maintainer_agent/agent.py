@@ -8,6 +8,8 @@ from google.adk.agents import Agent
 from .tools.find_next_commit_to_port import find_next_commit_to_port
 from .tools.create_issue import create_issue
 from .tools.close_issue import close_issue
+from .tools.get_repo_file_structure import get_repo_file_structure
+from .tools.get_file_content import get_file_content
 
 root_agent = Agent(
     name="adk_typescript_maintainer",
@@ -29,14 +31,19 @@ root_agent = Agent(
         "2. Creating tracking issues for new commits that need to be ported\n"
         "3. Analyzing the changes to determine if they need to be ported\n"
         "4. For ineligible changes, closing the issue with a clear explanation\n"
-        "5. For eligible changes, proceeding with the porting process\n"
+        "5. For eligible changes:\n"
+        "   a. Get the TypeScript repository file structure\n"
+        "   b. Identify and fetch the corresponding TypeScript files\n"
+        "   c. Update the TypeScript files with the ported changes\n"
         "6. Creating corresponding changes in the TypeScript repository\n"
         "7. Submitting pull requests with the ported changes\n\n"
         
         "Currently, you can:\n"
         "1. Find the next commit that needs to be ported using find_next_commit_to_port\n"
         "2. Create tracking issues for commits using create_issue\n"
-        "3. Close issues for ineligible commits using close_issue\n\n"
+        "3. Close issues for ineligible commits using close_issue\n"
+        "4. Get the TypeScript repository structure using get_repo_file_structure\n"
+        "5. Fetch TypeScript file contents using get_file_content\n\n"
         
         "When creating issues:\n"
         "- Use the title format: '[NEW COMMIT IN PYTHON VERSION] [commit:<sha>] <commit_message>'\n"
@@ -46,7 +53,10 @@ root_agent = Agent(
         "After creating an issue, analyze the commit's eligibility for porting:\n"
         "- Determine if the changes are Python-specific (e.g., dependency updates, Python-only features)\n"
         "- For ineligible commits, close the issue with a detailed comment explaining why it can't be ported\n"
-        "- For eligible commits, leave the issue open for further processing\n\n"
+        "- For eligible commits:\n"
+        "  1. Get the TypeScript repository structure to identify target files\n"
+        "  2. Fetch the content of corresponding TypeScript files\n"
+        "  3. Prepare the ported changes\n\n"
         
         "Examples of ineligible changes:\n"
         "- Python package version updates\n"
@@ -60,14 +70,24 @@ root_agent = Agent(
         "3. Create a tracking issue for the commit\n"
         "4. Analyze the commit's eligibility\n"
         "5. If ineligible, close the issue with a clear explanation\n"
-        "6. If eligible, proceed with the porting process\n\n"
+        "6. If eligible:\n"
+        "   a. Get the TypeScript repo structure\n"
+        "   b. Find corresponding TypeScript files\n"
+        "   c. Proceed with porting process\n\n"
         
         "Remember to:\n"
         "- Always include the [commit:<sha>] tag in issue titles for tracking\n"
         "- Use the first 7 characters of the commit SHA\n"
         "- Make issue descriptions clear and actionable\n"
         "- Add the 'needs-porting' label to all new issues\n"
-        "- Provide detailed explanations when closing issues as ineligible"
+        "- Provide detailed explanations when closing issues as ineligible\n"
+        "- Map Python files to their TypeScript equivalents carefully"
     ),
-    tools=[find_next_commit_to_port, create_issue, close_issue],
+    tools=[
+        find_next_commit_to_port,
+        create_issue,
+        close_issue,
+        get_repo_file_structure,
+        get_file_content
+    ],
 ) 

@@ -1,14 +1,17 @@
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 import requests
 from requests.exceptions import RequestException
+from google.adk.tools import ToolContext
+
+TOKEN_CACHE_KEY = "github_token"
 
 def get_file_content(
     username: str,
     repo: str,
     file_path: str,
     branch: Optional[str] = None,
-    github_token: Optional[str] = None
-) -> Tuple[str, Dict[str, Any]]:
+    tool_context: ToolContext = None
+) -> Dict[str, Any]:
     """
     Gets the content and metadata of a file from a GitHub repository.
 
@@ -17,12 +20,13 @@ def get_file_content(
         repo (str): GitHub repository name
         file_path (str): Path to the file within the repository
         branch (Optional[str]): Optional branch name (defaults to the repository's default branch)
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
-        Tuple[str, Dict[str, Any]]: A tuple containing:
-            - The file content as a string
-            - File metadata including:
+        Dict[str, Any]: Response containing:
+            - status: str ('success' or 'error')
+            - content: str (The file content as a string)
+            - metadata: Dict[str, Any] File metadata including:
                 - sha: str (File's SHA hash)
                 - size: int (File size in bytes)
                 - encoding: str (File encoding, usually 'base64' or 'utf-8')
@@ -34,55 +38,78 @@ def get_file_content(
                 - content: str (Raw content from API)
                 - name: str (File name)
                 - path: str (File path)
-
-    Raises:
-        RequestException: If there's an error fetching the file content
-        ValueError: If the file is not found or is a directory
+            - message: str (Error message if status is 'error')
     """
     try:
+        # Step 1: Check for cached token
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        
+        # If no token, we need to get it from environment or request it
+        if not github_token:
+            # For now, let's try to get it from environment as a fallback
+            import os
+            github_token = os.getenv("GITHUB_TOKEN")
+            
+            if github_token:
+                # Cache the token for future use
+                tool_context.state[TOKEN_CACHE_KEY] = github_token
+            else:
+                return {
+                    'status': 'error', 
+                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
+                }
+
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
         if branch:
             url += f"?ref={branch}"
             
         headers = {
-            "Accept": "application/vnd.github.v3.raw"
+            "Accept": "application/vnd.github.v3.raw",
+            "Authorization": f"token {github_token}"
         }
-        
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
         
         # First get the metadata with regular API call
         meta_headers = {
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}"
         }
-        if github_token:
-            meta_headers["Authorization"] = headers["Authorization"]
         
         meta_response = requests.get(url, headers=meta_headers)
         meta_response.raise_for_status()
         metadata = meta_response.json()
         
         if isinstance(metadata, list):
-            raise ValueError(f"Path '{file_path}' points to a directory, not a file")
+            return {
+                'status': 'error',
+                'message': f"Path '{file_path}' points to a directory, not a file"
+            }
         
         # Then get the raw content
         content_response = requests.get(url, headers=headers)
         content_response.raise_for_status()
         content = content_response.text
         
-        return content, metadata
+        return {
+            'status': 'success',
+            'content': content,
+            'metadata': metadata
+        }
     
     except RequestException as error:
+        # If we get a 401/403, clear the cached token
+        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+            tool_context.state[TOKEN_CACHE_KEY] = None
+            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
         print(f"Error fetching file content: {error}")
-        raise
+        return {'status': 'error', 'message': str(error)}
 
 def file_exists(
     username: str,
     repo: str,
     file_path: str,
     branch: Optional[str] = None,
-    github_token: Optional[str] = None
-) -> bool:
+    tool_context: ToolContext = None
+) -> Dict[str, Any]:
     """
     Checks if a file exists in a GitHub repository.
 
@@ -91,32 +118,62 @@ def file_exists(
         repo (str): GitHub repository name
         file_path (str): Path to the file within the repository
         branch (Optional[str]): Optional branch name (defaults to the repository's default branch)
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
-        bool: True if the file exists, False otherwise
+        Dict[str, Any]: Response containing:
+            - status: str ('success' or 'error')
+            - exists: bool (True if the file exists, False otherwise)
+            - message: str (Error message if status is 'error')
     """
     try:
+        # Step 1: Check for cached token
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        
+        # If no token, we need to get it from environment or request it
+        if not github_token:
+            # For now, let's try to get it from environment as a fallback
+            import os
+            github_token = os.getenv("GITHUB_TOKEN")
+            
+            if github_token:
+                # Cache the token for future use
+                tool_context.state[TOKEN_CACHE_KEY] = github_token
+            else:
+                return {
+                    'status': 'error', 
+                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
+                }
+
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
         if branch:
             url += f"?ref={branch}"
             
         headers = {
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}"
         }
-        
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
         
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             content = response.json()
             # Make sure it's a file, not a directory
-            return not isinstance(content, list)
-        return False
+            return {
+                'status': 'success',
+                'exists': not isinstance(content, list)
+            }
+        return {
+            'status': 'success',
+            'exists': False
+        }
     
-    except RequestException:
-        return False
+    except RequestException as error:
+        # If we get a 401/403, clear the cached token
+        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+            tool_context.state[TOKEN_CACHE_KEY] = None
+            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        print(f"Error checking file existence: {error}")
+        return {'status': 'error', 'message': str(error)}
 
 if __name__ == "__main__":
     # Example usage
@@ -126,27 +183,39 @@ if __name__ == "__main__":
         test_file = "README.md"
         test_branch = "main"
         
-        # Note: You would need to set your GitHub token as an environment variable
-        import os
-        github_token = os.getenv("GITHUB_TOKEN")
-        
         # Check if file exists
-        if file_exists(test_username, test_repo, test_file, test_branch, github_token):
-            print(f"Fetching content of {test_file} from {test_username}/{test_repo}:")
-            content, metadata = get_file_content(
-                test_username,
-                test_repo,
-                test_file,
-                test_branch,
-                github_token
-            )
-            print("\nFile metadata:")
-            print(f"Name: {metadata['name']}")
-            print(f"Size: {metadata['size']} bytes")
-            print(f"SHA: {metadata['sha']}")
-            print("\nContent preview (first 200 chars):")
-            print(content[:200] + "..." if len(content) > 200 else content)
+        exists_result = file_exists(
+            test_username,
+            test_repo,
+            test_file,
+            test_branch
+        )
+        
+        if exists_result["status"] == "success":
+            if exists_result["exists"]:
+                print(f"Fetching content of {test_file} from {test_username}/{test_repo}:")
+                result = get_file_content(
+                    test_username,
+                    test_repo,
+                    test_file,
+                    test_branch
+                )
+                
+                if result["status"] == "success":
+                    metadata = result["metadata"]
+                    content = result["content"]
+                    print("\nFile metadata:")
+                    print(f"Name: {metadata['name']}")
+                    print(f"Size: {metadata['size']} bytes")
+                    print(f"SHA: {metadata['sha']}")
+                    print("\nContent preview (first 200 chars):")
+                    print(content[:200] + "..." if len(content) > 200 else content)
+                else:
+                    print(f"Error: {result['message']}")
+            else:
+                print(f"File {test_file} not found")
         else:
-            print(f"File {test_file} not found")
+            print(f"Error: {exists_result['message']}")
+            
     except Exception as error:
         print(f"Test failed: {error}") 
