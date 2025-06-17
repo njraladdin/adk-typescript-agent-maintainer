@@ -47,15 +47,15 @@ def get_repo_file_structure(
             github_token = os.getenv("GITHUB_TOKEN")
             if github_token:
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
-            else:
-                return {
-                    'status': 'error', 
-                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-                }
+            # else:
+            #     return {
+            #         'status': 'error', 
+            #         'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
+            #     }
 
         headers = {
             "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {github_token}"
+            "Authorization": f"token {github_token}" if github_token else None
         }
 
         # First, get the commit SHA for the branch
@@ -159,7 +159,18 @@ def get_repo_file_structure(
                 else:  # Root level file
                     result.append(file_entry)
 
-        print(f"Successfully processed {len(tree_data['tree'])} tree entries")
+        # Format and print the tree data in a more readable way
+        formatted_tree = []
+        for item in tree_data['tree']:
+            entry = {
+                'path': item['path'],
+                'type': item['type'],
+                'size': item.get('size', 0) if item['type'] == 'blob' else None
+            }
+            formatted_tree.append(entry)
+
+        # Skip the flat list output and only use the hierarchical tree structure
+        # that's already implemented in print_repo_file_structure()
         return {
             "status": "success",
             "data": result
@@ -175,7 +186,9 @@ def get_repo_file_structure(
 def print_repo_file_structure(structure: List[Dict[str, Any]], indent: int = 0) -> None:
     """Helper function to print the repository file structure in a tree-like format."""
     for item in structure:
-        print("  " * indent + "├── " + item["name"])
+        prefix = "  " * indent + "├── "
+        size_info = f" ({item['size']} bytes)" if item.get('size') else ""
+        print(f"{prefix}{item['name']}{size_info}")
         if item["type"] == "dir" and "contents" in item:
             print_repo_file_structure(item["contents"], indent + 1)
 

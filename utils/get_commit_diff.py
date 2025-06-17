@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Literal
+from typing import TypedDict, List, Literal, Optional
 import requests
 from requests.exceptions import RequestException
 
@@ -11,6 +11,8 @@ class FileDiff(TypedDict):
     deletions: int
     is_binary: bool
     status: Literal['modified', 'added', 'deleted', 'renamed']
+    original_content: Optional[str]  # Content before the change
+    modified_content: Optional[str]  # Content after the change
 
 class CommitDiffResponse(TypedDict):
     """Represents a structured commit diff"""
@@ -19,13 +21,51 @@ class CommitDiffResponse(TypedDict):
     total_deletions: int
     total_files_changed: int
 
-def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
+def get_file_content_at_commit(
+    username: str,
+    repo: str,
+    file_path: str,
+    commit_sha: str
+) -> Optional[str]:
+    """
+    Gets the content of a file at a specific commit.
+    
+    Args:
+        username: GitHub username or organization name
+        repo: GitHub repository name
+        file_path: Path to the file in the repository
+        commit_sha: The commit hash to get the content from
+        
+    Returns:
+        The file content as a string, or None if the file doesn't exist
+    """
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}",
+            headers={
+                'Accept': 'application/vnd.github.v3.raw'
+            },
+            params={
+                'ref': commit_sha
+            }
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.text
+    except RequestException:
+        return None
+
+def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, commit_sha: str) -> CommitDiffResponse:
     """
     Parse a raw git diff into a structured format.
     
     Args:
         raw_diff: The raw diff string from GitHub API
         max_excerpt_lines: Maximum number of lines to include in the excerpt
+        username: GitHub username or organization name
+        repo: GitHub repository name
+        commit_sha: The commit hash
     
     Returns:
         Structured diff object
@@ -72,6 +112,22 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
         
         is_binary = 'Binary files' in section or 'GIT binary patch' in section
         
+        # Get file contents
+        original_content = None
+        modified_content = None
+        
+        if not is_binary:
+            # For the original content, we need to look at the parent commit
+            if status != 'added':
+                parent_sha = requests.get(
+                    f"https://api.github.com/repos/{username}/{repo}/commits/{commit_sha}"
+                ).json()["parents"][0]["sha"]
+                original_content = get_file_content_at_commit(username, repo, from_file, parent_sha)
+            
+            # For the modified content, we look at the current commit
+            if status != 'deleted':
+                modified_content = get_file_content_at_commit(username, repo, to_file, commit_sha)
+        
         if is_binary:
             files.append({
                 'file': file_name,
@@ -80,7 +136,9 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
                 'additions': 0,
                 'deletions': 0,
                 'is_binary': True,
-                'status': status
+                'status': status,
+                'original_content': original_content,
+                'modified_content': modified_content
             })
             continue
         
@@ -177,7 +235,9 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
             'additions': added_lines,
             'deletions': removed_lines,
             'is_binary': False,
-            'status': status
+            'status': status,
+            'original_content': original_content,
+            'modified_content': modified_content
         })
     
     return {
@@ -203,7 +263,10 @@ def get_commit_diff(
         max_excerpt_lines: Maximum number of lines to include in the excerpt (default: 10)
     
     Returns:
-        Structured diff object
+        Structured diff object containing:
+        - File diffs with original and modified content
+        - Total additions and deletions
+        - Total files changed
     
     Raises:
         RequestException: If there's an error fetching the commit diff
@@ -216,7 +279,7 @@ def get_commit_diff(
             }
         )
         response.raise_for_status()
-        return parse_diff(response.text, max_excerpt_lines)
+        return parse_diff(response.text, max_excerpt_lines, username, repo, commit_sha)
     except RequestException as error:
         print(f"Error fetching commit diff: {error}")
         raise
