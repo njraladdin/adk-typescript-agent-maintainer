@@ -56,16 +56,23 @@ def find_next_commit_to_port(
                 commit_id = title[start:end]
                 processed_commits.add(commit_id)
     
-    # Find the oldest unprocessed commit
-    for commit in reversed(commits):  # Reverse to get oldest first
+    # Filter out processed commits to get unprocessed ones
+    unprocessed_commits = []
+    for commit in commits:
         commit_sha = commit["sha"][:7]  # Use first 7 chars of SHA
         if commit_sha not in processed_commits:
-            # Get the diff information for this commit
-            diff_info = get_commit_diff(python_username, python_repo, commit["sha"])
-            return {
-                "commit": commit,
-                "diff": diff_info
-            }
+            unprocessed_commits.append(commit)
+    
+    # If there are unprocessed commits, return the oldest one (last in the list since commits are newest-first)
+    if unprocessed_commits:
+        # Get the oldest unprocessed commit (last in the list since GitHub returns newest first)
+        oldest_commit = unprocessed_commits[-1]
+        # Get the diff information for this commit
+        diff_info = get_commit_diff(python_username, python_repo, oldest_commit["sha"])
+        return {
+            "commit": oldest_commit,
+            "diff": diff_info
+        }
             
     return None
 
