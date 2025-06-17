@@ -16,3 +16,7 @@
 - get existing issues 
 - filter unprocessed commits (and only keep the oldest one)
 - send to agent 
+
+problems: 
+
+agnet is getting confused. make the steps it needs to take tighter and more specific, with examples to make the output much clearer 
