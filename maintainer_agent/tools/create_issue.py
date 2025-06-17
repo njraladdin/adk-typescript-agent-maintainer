@@ -1,6 +1,9 @@
 from typing import Optional, Dict, Any
 import requests
 from requests.exceptions import RequestException
+from google.adk.tools import ToolContext
+
+TOKEN_CACHE_KEY = "github_token"
 
 def create_issue(
     username: str,
@@ -8,7 +11,7 @@ def create_issue(
     title: str,
     body: str,
     labels: Optional[list[str]] = None,
-    github_token: Optional[str] = None
+    tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
     Creates a new issue in a GitHub repository.
@@ -19,23 +22,37 @@ def create_issue(
         title (str): Issue title
         body (str): Issue body/description
         labels (Optional[list[str]]): List of labels to apply to the issue
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         Dict[str, Any]: The created issue data from GitHub API
-
-    Raises:
-        RequestException: If there's an error creating the issue
     """
     try:
+        # Step 1: Check for cached token
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        
+        # If no token, we need to get it from environment or request it
+        if not github_token:
+            # For now, let's try to get it from environment as a fallback
+            import os
+            github_token = os.getenv("GITHUB_TOKEN")
+            
+            if github_token:
+                # Cache the token for future use
+                tool_context.state[TOKEN_CACHE_KEY] = github_token
+            else:
+                return {
+                    'status': 'error', 
+                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
+                }
+
+        # Step 2: Make authenticated API call
         url = f"https://api.github.com/repos/{username}/{repo}/issues"
         
         headers = {
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}"
         }
-        
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
         
         data = {
             "title": title,
@@ -48,11 +65,22 @@ def create_issue(
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         
-        return response.json()
+        # Step 3: Return success response
+        result = response.json()
+        return {
+            "status": "success",
+            "data": result,
+            "html_url": result.get("html_url"),
+            "number": result.get("number")
+        }
     
     except RequestException as error:
+        # If we get a 401/403, clear the cached token
+        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+            tool_context.state[TOKEN_CACHE_KEY] = None
+            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
         print(f"Error creating issue: {error}")
-        raise
+        return {'status': 'error', 'message': str(error)}
 
 if __name__ == "__main__":
     # Example usage
