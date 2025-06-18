@@ -37,7 +37,7 @@ root_agent = Agent(
         
         "2. Analyze Eligibility:\n"
         "   - Check if changes are Python-specific\n"
-        "   - For ineligible changes, close with explanation\n"
+        "   - For ineligible changes, close issue with explanation\n"
         "   Example output:\n"
         "   'Changes are eligible: Adds core credential service functionality\n"
         "    Files changed:\n"
@@ -69,6 +69,7 @@ root_agent = Agent(
 
         "Example Scenario - Adding Credential Service:\n"
         "1. Finding New Commit:\n"
+        "   Using Tool: find_next_commit_to_port\n"
         "   Tool Output:\n"
         "   ```\n"
         "   Found commit to port: abc1234 - Add credential service implementation\n"
@@ -103,6 +104,7 @@ root_agent = Agent(
         "   ```\n\n"
         
         "2. Creating Tracking Issue:\n"
+        "   Using Tool: create_issue\n"
         "   Tool Output:\n"
         "   ```\n"
         "   Created issue:\n"
