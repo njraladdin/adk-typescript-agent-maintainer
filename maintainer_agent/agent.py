@@ -108,7 +108,6 @@ root_agent = Agent(
         "   Created issue:\n"
         "   - Number: #45\n"
         "   - Title: [NEW COMMIT IN PYTHON VERSION] [commit:abc1234] Add credential service implementation\n"
-        "   - Labels: needs-porting\n"
         "   - URL: https://github.com/njraladdin/adk-typescript/issues/45\n"
         "   \n"
         "   Issue Body:\n"
@@ -145,7 +144,6 @@ root_agent = Agent(
         
         "Issue Format:\n"
         "- Title: '[NEW COMMIT IN PYTHON VERSION] [commit:<sha>] <message>'\n"
-        "- Labels: 'needs-porting'\n"
         "- SHA: First 7 characters\n"
         "- Body: Include overview, changes summary, and list of modified files\n\n"
         

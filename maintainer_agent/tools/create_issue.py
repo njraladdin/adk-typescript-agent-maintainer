@@ -10,7 +10,6 @@ def create_issue(
     repo: str,
     title: str,
     body: str,
-    labels: Optional[list[str]] = None,
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
@@ -21,7 +20,6 @@ def create_issue(
         repo (str): GitHub repository name
         title (str): Issue title
         body (str): Issue body/description
-        labels (Optional[list[str]]): List of labels to apply to the issue
         tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
@@ -59,9 +57,6 @@ def create_issue(
             "body": body
         }
         
-        if labels:
-            data["labels"] = labels
-        
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         
@@ -89,7 +84,6 @@ if __name__ == "__main__":
         test_repo = "test-repo"
         test_title = "Test Issue"
         test_body = "This is a test issue created via the API"
-        test_labels = ["test", "automated"]
         
         # Note: You would need to set your GitHub token as an environment variable
         import os
@@ -100,7 +94,6 @@ if __name__ == "__main__":
             test_repo,
             test_title,
             test_body,
-            test_labels,
             github_token
         )
         print("Created issue:", issue["html_url"])
