@@ -11,8 +11,6 @@ class FileDiff(TypedDict):
     deletions: int
     is_binary: bool
     status: Literal['modified', 'added', 'deleted', 'renamed']
-    original_content: Optional[str]  # Content before the change
-    modified_content: Optional[str]  # Content after the change
 
 class CommitDiffResponse(TypedDict):
     """Represents a structured commit diff"""
@@ -21,51 +19,13 @@ class CommitDiffResponse(TypedDict):
     total_deletions: int
     total_files_changed: int
 
-def get_file_content_at_commit(
-    username: str,
-    repo: str,
-    file_path: str,
-    commit_sha: str
-) -> Optional[str]:
-    """
-    Gets the content of a file at a specific commit.
-    
-    Args:
-        username: GitHub username or organization name
-        repo: GitHub repository name
-        file_path: Path to the file in the repository
-        commit_sha: The commit hash to get the content from
-        
-    Returns:
-        The file content as a string, or None if the file doesn't exist
-    """
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}",
-            headers={
-                'Accept': 'application/vnd.github.v3.raw'
-            },
-            params={
-                'ref': commit_sha
-            }
-        )
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-        return response.text
-    except RequestException:
-        return None
-
-def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, commit_sha: str) -> CommitDiffResponse:
+def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
     """
     Parse a raw git diff into a structured format.
     
     Args:
         raw_diff: The raw diff string from GitHub API
         max_excerpt_lines: Maximum number of lines to include in the excerpt
-        username: GitHub username or organization name
-        repo: GitHub repository name
-        commit_sha: The commit hash
     
     Returns:
         Structured diff object
@@ -112,22 +72,6 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, 
         
         is_binary = 'Binary files' in section or 'GIT binary patch' in section
         
-        # Get file contents
-        original_content = None
-        modified_content = None
-        
-        if not is_binary:
-            # For the original content, we need to look at the parent commit
-            if status != 'added':
-                parent_sha = requests.get(
-                    f"https://api.github.com/repos/{username}/{repo}/commits/{commit_sha}"
-                ).json()["parents"][0]["sha"]
-                original_content = get_file_content_at_commit(username, repo, from_file, parent_sha)
-            
-            # For the modified content, we look at the current commit
-            if status != 'deleted':
-                modified_content = get_file_content_at_commit(username, repo, to_file, commit_sha)
-        
         if is_binary:
             files.append({
                 'file': file_name,
@@ -136,9 +80,7 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, 
                 'additions': 0,
                 'deletions': 0,
                 'is_binary': True,
-                'status': status,
-                'original_content': original_content,
-                'modified_content': modified_content
+                'status': status
             })
             continue
         
@@ -196,34 +138,6 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, 
                 
                 excerpt.append(f"{prefix}{line[1:MAX_LINE_LENGTH]}... [trimmed {formatted_remaining} chars from {formatted_length} char line]")
         
-        # If this file has very large lines and we haven't yet included a sample
-        if has_very_large_lines and not any('[trimmed' in line for line in excerpt):
-            # Find the first very large line
-            for line in changed_lines:
-                if len(line) > 3000:
-                    prefix = line[0]
-                    
-                    # Try to find a meaningful part of the code to show
-                    start_index = 0
-                    
-                    # Look for common code patterns
-                    code_patterns = ['var ', 'function ', 'const ', 'let ', 'class ', 'import ']
-                    for pattern in code_patterns:
-                        pattern_index = line.find(pattern)
-                        if pattern_index >= 0:
-                            start_index = pattern_index
-                            break
-                    
-                    chars_to_show = min(MAX_LINE_LENGTH, len(line) - start_index)
-                    snippet = line[start_index:start_index + chars_to_show]
-                    total_length = len(line)
-                    
-                    # Format large numbers with commas for readability
-                    formatted_length = f"{total_length:,}"
-                    
-                    excerpt.append(f"{prefix}{snippet}... [showing {chars_to_show} chars from {formatted_length} char line]")
-                    break
-        
         # Add ellipsis if there are more lines than what we included
         if len(changed_lines) > max_excerpt_lines:
             excerpt.append(f"... ({len(changed_lines) - max_excerpt_lines} more lines)")
@@ -235,9 +149,7 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int, username: str, repo: str, 
             'additions': added_lines,
             'deletions': removed_lines,
             'is_binary': False,
-            'status': status,
-            'original_content': original_content,
-            'modified_content': modified_content
+            'status': status
         })
     
     return {
@@ -252,7 +164,7 @@ def get_commit_diff(
     repo: str,
     commit_sha: str,
     max_excerpt_lines: int = 10
-) -> CommitDiffResponse:
+) -> Optional[CommitDiffResponse]:
     """
     Gets the diff for a specific commit.
     
@@ -263,13 +175,7 @@ def get_commit_diff(
         max_excerpt_lines: Maximum number of lines to include in the excerpt (default: 10)
     
     Returns:
-        Structured diff object containing:
-        - File diffs with original and modified content
-        - Total additions and deletions
-        - Total files changed
-    
-    Raises:
-        RequestException: If there's an error fetching the commit diff
+        Optional[CommitDiffResponse]: Structured diff object containing file diffs and stats, or None if error
     """
     try:
         response = requests.get(
@@ -279,10 +185,10 @@ def get_commit_diff(
             }
         )
         response.raise_for_status()
-        return parse_diff(response.text, max_excerpt_lines, username, repo, commit_sha)
+        return parse_diff(response.text, max_excerpt_lines)
     except RequestException as error:
         print(f"Error fetching commit diff: {error}")
-        raise
+        return None
 
 if __name__ == "__main__":
     # Example usage
