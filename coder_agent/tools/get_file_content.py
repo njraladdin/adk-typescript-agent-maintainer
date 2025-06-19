@@ -4,6 +4,7 @@ from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
 
 TOKEN_CACHE_KEY = "github_token"
+GATHERED_CONTEXT_KEY = "gathered_context"
 
 def get_file_content(
     username: str,
@@ -13,7 +14,8 @@ def get_file_content(
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Gets the content and metadata of a file from a GitHub repository.
+    Gets the content and metadata of a file from a GitHub repository and automatically
+    stores it in the session state.
 
     Args:
         username (str): GitHub username or organization name
@@ -42,7 +44,7 @@ def get_file_content(
     """
     try:
         # Step 1: Check for cached token
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
         
         # If no token, we need to get it from environment or request it
         if not github_token:
@@ -50,10 +52,10 @@ def get_file_content(
             import os
             github_token = os.getenv("GITHUB_TOKEN")
             
-            if github_token:
+            if github_token and tool_context:
                 # Cache the token for future use
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
-            else:
+            elif not github_token:
                 return {
                     'status': 'error', 
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
@@ -89,6 +91,28 @@ def get_file_content(
         content_response.raise_for_status()
         content = content_response.text
         
+        # Store file content in session state
+        if tool_context:
+            # Initialize gathered_context if it doesn't exist
+            if GATHERED_CONTEXT_KEY not in tool_context.state:
+                tool_context.state[GATHERED_CONTEXT_KEY] = {}
+            
+            # Determine which category this file belongs to based on repository
+            repo_key = f"{username}/{repo}"
+            
+            if "adk-python" in repo_key or "google" in username:
+                # This is a Python file (either source or additional context)
+                if 'python_context_files' not in tool_context.state[GATHERED_CONTEXT_KEY]:
+                    tool_context.state[GATHERED_CONTEXT_KEY]['python_context_files'] = {}
+                tool_context.state[GATHERED_CONTEXT_KEY]['python_context_files'][file_path] = content
+                
+            else:
+                # Default to TypeScript files for all other repositories
+                # This simplifies our implementation to focus on just Python and TypeScript
+                if 'typescript_context_files' not in tool_context.state[GATHERED_CONTEXT_KEY]:
+                    tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'] = {}
+                tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'][file_path] = content
+        
         return {
             'status': 'success',
             'content': content,
@@ -97,7 +121,7 @@ def get_file_content(
     
     except RequestException as error:
         # If we get a 401/403, clear the cached token
-        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+        if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
             tool_context.state[TOKEN_CACHE_KEY] = None
             return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
         print(f"Error fetching file content: {error}")

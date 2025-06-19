@@ -21,6 +21,7 @@ class CommitDiffResponse(TypedDict):
     total_files_changed: int
 
 TOKEN_CACHE_KEY = "github_token"
+GATHERED_CONTEXT_KEY = "gathered_context"
 
 def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
     """
@@ -170,7 +171,7 @@ def get_commit_diff(
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Gets the diff for a specific commit.
+    Gets the diff for a specific commit and automatically stores it in the session state.
     
     Args:
         username (str): GitHub username or organization name
@@ -217,6 +218,20 @@ def get_commit_diff(
         response.raise_for_status()
         
         diff_data = parse_diff(response.text, max_excerpt_lines)
+        
+        # Store commit info in session state
+        if tool_context:
+            # Initialize gathered_context if it doesn't exist
+            if GATHERED_CONTEXT_KEY not in tool_context.state:
+                tool_context.state[GATHERED_CONTEXT_KEY] = {}
+            
+            # Store commit info - this structure remains the same
+            # Other tools will store files in python_context_files and typescript_context_files
+            tool_context.state[GATHERED_CONTEXT_KEY]['commit_info'] = {
+                'commit_sha': commit_sha,
+                'diff': response.text,  # Store raw diff
+                'changed_files': [file_info['file'] for file_info in diff_data['files']]
+            }
         
         return {
             'status': 'success',

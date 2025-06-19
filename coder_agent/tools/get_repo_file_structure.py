@@ -4,6 +4,7 @@ from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
 
 TOKEN_CACHE_KEY = "github_token"
+GATHERED_CONTEXT_KEY = "gathered_context"
 
 class MockToolContext:
     """Mock ToolContext for direct script execution"""
@@ -23,7 +24,8 @@ def get_repo_file_structure(
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Gets the complete file and directory structure of a GitHub repository using the Git Tree API.
+    Gets the complete file and directory structure of a GitHub repository using the Git Tree API
+    and automatically stores it in the session state.
     
     Args:
         username (str): GitHub username or organization name
@@ -41,11 +43,11 @@ def get_repo_file_structure(
     """
     try:
         # Get token from context
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
         if not github_token:
             import os
             github_token = os.getenv("GITHUB_TOKEN")
-            if github_token:
+            if github_token and tool_context:
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
             # else:
             #     return {
@@ -159,6 +161,22 @@ def get_repo_file_structure(
                 else:  # Root level file
                     result.append(file_entry)
 
+        # Store repo structure in session state
+        if tool_context:
+            # Initialize gathered_context if it doesn't exist
+            if GATHERED_CONTEXT_KEY not in tool_context.state:
+                tool_context.state[GATHERED_CONTEXT_KEY] = {}
+            
+            # Determine which repo this is and store accordingly
+            # Note: Files will be stored in python_context_files and typescript_context_files
+            repo_key = f"{username}/{repo}"
+            if repo_key == "google/adk-python" or "adk-python" in repo:
+                tool_context.state[GATHERED_CONTEXT_KEY]['python_repo_structure'] = result
+            else:
+                # Default to TypeScript for all other repositories
+                # This simplifies our implementation to focus on just Python and TypeScript
+                tool_context.state[GATHERED_CONTEXT_KEY]['typescript_repo_structure'] = result
+
         # Format and print the tree data in a more readable way
         formatted_tree = []
         for item in tree_data['tree']:
@@ -177,7 +195,7 @@ def get_repo_file_structure(
         }
 
     except RequestException as error:
-        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+        if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
             tool_context.state[TOKEN_CACHE_KEY] = None
             return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
         print(f"Error fetching repository file structure: {error}")

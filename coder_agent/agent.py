@@ -15,6 +15,9 @@ from .tools.get_repo_file_structure import get_repo_file_structure
 from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
 
+# --- Callback Imports ---
+from .callbacks import save_gathered_context
+
 # ==============================================================================
 # 1. DEFINE THE STRUCTURED DATA MODELS
 # ==============================================================================
@@ -43,58 +46,136 @@ class GatheredContext(BaseModel):
 # ==============================================================================
 
 # --- Agent 1: Context Gatherer ---
-# This agent's only job is to collect all information and output a GatheredContext object.
+# This agent's only job is to collect all information and store it in session state.
 context_gatherer_agent = Agent(
     name="ContextGatherer",
     model="gemini-1.5-pro-latest",
     tools=[get_commit_diff, get_repo_file_structure, get_file_content],
+    after_agent_callback=save_gathered_context,
     
     instruction="""
-    You are an expert context gatherer for a Python-to-TypeScript code migration.
-    Your sole purpose is to collect all necessary information and output it as a single, complete JSON object
-    that strictly follows the provided schema. Do not add any other text, reasoning, or explanations.
+    You are an expert context gatherer for a code migration project. Your sole purpose is to populate a complete context object in the session state by calling the necessary tools. The tools will automatically update the session state for you.
 
-    INPUT: You will be given a commit SHA.
-    
-    YOUR STEPS:
-    1.  Use the `get_commit_diff` tool with the provided commit SHA to get the diff and list of changed files.
-    2.  Use the `get_repo_file_structure` tool for BOTH the Python repo ('google/adk-python') and the TypeScript repo ('njraladdin/adk-typescript').
-    3.  For EACH changed Python file from the commit info, use the `get_file_content` tool to fetch its full content.
-    4.  Based on the file paths and structures, determine the most likely equivalent file paths in the TypeScript repo.
-    5.  For EACH equivalent TypeScript file you identify, use `get_file_content` to fetch its content.
-    6.  Analyze the imports in the changed Python files and their TypeScript equivalents. If you identify other relevant files needed for context (e.g., imported local modules), fetch their content as well.
-    7.  Once all information is gathered, structure it PERFECTLY according to the provided JSON schema and output it as your final answer.
+    ---
+    **MISSION CONTEXT**
+
+    You are working on a project to port features from a primary Python repository to its TypeScript equivalent.
+
+    - **SOURCE REPOSITORY:** `google/adk-python`
+      - This is the official Python Agent Development Kit where new features and bug fixes originate.
+      - You will be given a commit from this repository to analyze.
+
+    - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
+      - This is the TypeScript port of the Python library.
+      - Your goal is to gather all the necessary context so that another agent can accurately replicate the Python commit's changes in this TypeScript repository.
+    ---
+
+    **YOUR TASK STEPS**
+
+    You will be given a commit SHA as input. You must perform the following steps by calling the appropriate tools:
+
+    1. Call `get_commit_diff` with the provided commit SHA to get the list of changed files.
+       - The tool will automatically store commit info in the session state.
+
+    2. Call `get_repo_file_structure` for both repositories:
+       - For Python: username='google', repo='adk-python'
+       - For TypeScript: username='njraladdin', repo='adk-typescript'
+       - The tool will automatically store repo structures in the session state.
+
+    3. For each changed Python file from the commit diff, call `get_file_content` with:
+       - username='google'
+       - repo='adk-python'
+       - file_path=<path to the Python file>
+       - The tool will automatically store these in 'python_context_files'.
+
+    4. For each equivalent TypeScript file you identify (if any), call `get_file_content` with:
+       - username='njraladdin'
+       - repo='adk-typescript'
+       - file_path=<path to the TypeScript file>
+       - The tool will automatically store these in 'typescript_context_files'.
+
+    5. Gather additional Python context files:
+       - Analyze each Python file you've collected
+       - Identify any imports of local modules (e.g., `from ..utils import helper`)
+       - For each local import, call `get_file_content` with the Python repo details
+       - The tool will automatically store these in 'python_context_files'
+
+    6. Gather additional TypeScript context files:
+       - Analyze each TypeScript file you've collected
+       - Identify any imports of local modules (e.g., `import { Helper } from '../utils'`)
+       - For each local import, call `get_file_content` with the TypeScript repo details
+       - The tool will automatically store these in 'typescript_context_files'
+
+    7. When you have called the tools for all necessary files, provide a brief summary of what you've collected.
+
+    ---
+    **EXAMPLE SCENARIO**
+
+    - **INPUT:** Commit 'a1b2c3d4'
+
+    - **YOUR ACTION (Step 1):** Call `get_commit_diff(username='google', repo='adk-python', commit_sha='a1b2c3d4')`.
+      - Result: Changed file is `google/adk/agents/base_agent.py`.
+      - The tool automatically stores this in the session state under 'commit_info'.
+
+    - **YOUR ACTION (Step 2):** 
+      - Call `get_repo_file_structure(username='google', repo='adk-python')`.
+      - Call `get_repo_file_structure(username='njraladdin', repo='adk-typescript')`.
+      - The tool automatically stores these in 'python_repo_structure' and 'typescript_repo_structure'.
+
+    - **YOUR ACTION (Step 3):** Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/agents/base_agent.py')`.
+      - The tool automatically stores this in 'python_context_files'.
+
+    - **YOUR ACTION (Step 4):** You determine the equivalent file is `src/agents/base-agent.ts`. 
+      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/agents/base-agent.ts')`.
+      - The tool automatically stores this in 'typescript_context_files'.
+
+    - **YOUR ACTION (Step 5 - Additional Python Context):** You analyze `base_agent.py` and see it imports:
+      - `from ..events.event import Event`
+      - `from ..utils.logger import Logger`
+      - Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/events/event.py')`.
+      - Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/utils/logger.py')`.
+      - Both files are automatically stored in 'python_context_files'.
+
+    - **YOUR ACTION (Step 6 - Additional TypeScript Context):** You analyze `base-agent.ts` and see it imports:
+      - `import { Event } from '../events/event'`
+      - `import { Logger } from '../utils/logger'`
+      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/events/event.ts')`.
+      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/utils/logger.ts')`.
+      - Both files are automatically stored in 'typescript_context_files'.
+
+    - **YOUR ACTION (Step 7 - Summary):** Provide a brief summary of all the files you've collected:
+      - Commit analyzed: a1b2c3d4
+      - Python files collected: base_agent.py, event.py, logger.py
+      - TypeScript files collected: base-agent.ts, event.ts, logger.ts
+    ---
     """,
-    
-    # This forces the agent's output to be a valid `GatheredContext` JSON object.
-    output_schema=GatheredContext,
-    
-    # This tells the framework to save the structured output to the session state.
-    # The key 'gathered_context' can be used by the next agent.
-    output_key="gathered_context" 
 )
 
 # --- Agent 2: Code Translator ---
-# This agent receives the context and performs the translation.
+# This agent receives the context from session state and performs the translation.
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-1.5-pro-latest",
     tools=[write_local_file],
     
-    # Note: The `{gathered_context}` placeholder will be automatically filled
-    # with the output from the previous agent.
     instruction="""
     You are an expert Python-to-TypeScript developer specializing in code migration.
-    You will be provided with a complete JSON object containing all the information you need:
-    commit diffs, file structures, and the full content of all relevant source files
-    from both the Python and TypeScript repositories. This context is available in the `{gathered_context}` placeholder.
+    All the necessary context has been gathered and stored in the session state by the previous agent.
+    The session state contains:
+    - commit_info: Details about the source commit including SHA, diff, and changed files
+    - python_repo_structure: The file structure of the Python repository
+    - typescript_repo_structure: The file structure of the TypeScript repository  
+    - python_context_files: Content of all Python files (both changed files and additional context)
+    - typescript_context_files: Content of all TypeScript files (both equivalent files and additional context)
 
     YOUR TASK:
-    1.  Carefully analyze the provided context in `{gathered_context}`.
+    1.  Access and analyze the gathered context from the session state.
     2.  For each changed Python file, write the new, updated TypeScript equivalent, applying the logic from the Python diff.
     3.  Ensure your code adheres to TypeScript best practices, is well-typed, and idiomatic.
     4.  Use the `write_local_file` tool to save each newly generated TypeScript file. The path should be relative to an `output/` directory (e.g., 'output/src/new-file.ts').
-    5.  After all files are written, your final response must be a simple confirmation message, like 'Porting complete. All files have been saved.'
+    5.  After all files are written, provide a summary of what was translated and confirm that all files have been saved.
+
+    Remember: All the context you need is already available in the session state - you don't need to fetch any additional information.
     """
 )
 
@@ -124,15 +205,17 @@ root_agent = Agent(
     
     instruction="""
     You are an expert coordinator for a code porting workflow. You have two main sub-agents available as tools:
-    1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit.
-    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically use the context gathered by the `ContextGatherer` if it has been run in the same session.
+    1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit. The tool will automatically store all gathered information in the session state, organizing files into 'python_context_files' and 'typescript_context_files'.
+    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically access the context from the session state that was populated by the ContextGatherer.
 
     Your job is to understand the user's request and orchestrate the workflow.
 
-    - If the user provides a commit ID and asks to start the full porting process, you MUST first call the `ContextGatherer` tool with the commit ID. After it completes, its output will be available in the conversation history. You should then call the `CodeTranslator` tool to finish the job.
+    - If the user provides a commit ID and asks to start the full porting process, you MUST first call the `ContextGatherer` tool with the commit ID. After it completes successfully, call the `CodeTranslator` tool to finish the job.
     
-    - If the user explicitly asks to ONLY gather context for a commit ID, just call the `ContextGatherer` tool and present its JSON output directly to the user.
+    - If the user explicitly asks to ONLY gather context for a commit ID, just call the `ContextGatherer` tool and report on what was collected.
     
-    - If the user provides context and asks to ONLY translate, call the `CodeTranslator` tool.
+    - If the user asks to ONLY translate (assuming context is already gathered), call the `CodeTranslator` tool.
+
+    The session state automatically handles data persistence between the two agents, so you don't need to worry about passing data manually.
     """,
 )
