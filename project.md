@@ -17,6 +17,12 @@
 - filter unprocessed commits (and only keep the oldest one)
 - send to agent 
 
-problems: 
+progress: 
 
-agnet is getting confused. make the steps it needs to take tighter and more specific, with examples to make the output much clearer 
+seperated agent into manager and coder. currently working on coder
+
+coder has 2 sub agents:  context retrieval & code writer. fix some detaisl in context retrieval and finish coder. then test agent 
+
+manager agent is practically finished with some clean up 
+
+estimated finish : friday 
