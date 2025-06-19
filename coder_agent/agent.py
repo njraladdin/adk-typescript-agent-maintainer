@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 # --- ADK Imports ---
 from google.adk.agents import Agent
-from google.adk.tools import AgentTool
+from google.adk.tools import agent_tool
 
 # --- Tool Imports ---
 # Make sure these tool files exist in a 'tools' subdirectory
@@ -184,8 +184,8 @@ code_translator_agent = Agent(
 # 3. WRAP SUB-AGENTS AS TOOLS
 # ==============================================================================
 
-context_gatherer_tool = AgentTool(agent=context_gatherer_agent)
-code_translator_tool = AgentTool(agent=code_translator_agent)
+context_gatherer_tool = agent_tool.AgentTool(agent=context_gatherer_agent)
+code_translator_tool = agent_tool.AgentTool(agent=code_translator_agent)
 
 
 # ==============================================================================
