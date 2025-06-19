@@ -7,7 +7,6 @@ TOKEN_CACHE_KEY = "github_token"
 GATHERED_CONTEXT_KEY = "gathered_context"
 
 def get_file_content(
-    username: str,
     repo: str,
     file_path: str,
     branch: Optional[str] = None,
@@ -18,8 +17,7 @@ def get_file_content(
     stores it in the session state.
 
     Args:
-        username (str): GitHub username or organization name
-        repo (str): GitHub repository name
+        repo (str): GitHub repository in the format "username/repo" (e.g. "google/adk-python")
         file_path (str): Path to the file within the repository
         branch (Optional[str]): Optional branch name (defaults to the repository's default branch)
         tool_context (ToolContext): Automatically injected by ADK for auth handling
@@ -61,7 +59,7 @@ def get_file_content(
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
 
-        url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
+        url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
         if branch:
             url += f"?ref={branch}"
             
@@ -98,9 +96,7 @@ def get_file_content(
                 tool_context.state[GATHERED_CONTEXT_KEY] = {}
             
             # Determine which category this file belongs to based on repository
-            repo_key = f"{username}/{repo}"
-            
-            if "adk-python" in repo_key or "google" in username:
+            if "adk-python" in repo or "google" in repo.split('/')[0]:
                 # This is a Python file (either source or additional context)
                 if 'python_context_files' not in tool_context.state[GATHERED_CONTEXT_KEY]:
                     tool_context.state[GATHERED_CONTEXT_KEY]['python_context_files'] = {}
@@ -128,7 +124,6 @@ def get_file_content(
         return {'status': 'error', 'message': str(error)}
 
 def file_exists(
-    username: str,
     repo: str,
     file_path: str,
     branch: Optional[str] = None,
@@ -138,8 +133,7 @@ def file_exists(
     Checks if a file exists in a GitHub repository.
 
     Args:
-        username (str): GitHub username or organization name
-        repo (str): GitHub repository name
+        repo (str): GitHub repository in the format "username/repo" (e.g. "google/adk-python")
         file_path (str): Path to the file within the repository
         branch (Optional[str]): Optional branch name (defaults to the repository's default branch)
         tool_context (ToolContext): Automatically injected by ADK for auth handling
@@ -169,7 +163,7 @@ def file_exists(
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
 
-        url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
+        url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
         if branch:
             url += f"?ref={branch}"
             
@@ -202,14 +196,12 @@ def file_exists(
 if __name__ == "__main__":
     # Example usage
     try:
-        test_username = "test-user"
-        test_repo = "test-repo"
+        test_repo = "njraladdin/adk-typescript"
         test_file = "README.md"
         test_branch = "main"
         
         # Check if file exists
         exists_result = file_exists(
-            test_username,
             test_repo,
             test_file,
             test_branch
@@ -217,9 +209,8 @@ if __name__ == "__main__":
         
         if exists_result["status"] == "success":
             if exists_result["exists"]:
-                print(f"Fetching content of {test_file} from {test_username}/{test_repo}:")
+                print(f"Fetching content of {test_file} from {test_repo}:")
                 result = get_file_content(
-                    test_username,
                     test_repo,
                     test_file,
                     test_branch

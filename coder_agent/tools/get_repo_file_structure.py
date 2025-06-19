@@ -16,8 +16,7 @@ class MockToolContext:
         return self._state
 
 def get_repo_file_structure(
-    username: str = 'njraladdin',
-    repo: str = 'adk-typescript',
+    repo: str = 'njraladdin/adk-typescript',
     path: str = "",
     branch: str = "main",
     exclude_patterns: Optional[List[str]] = None,
@@ -28,8 +27,7 @@ def get_repo_file_structure(
     and automatically stores it in the session state.
     
     Args:
-        username (str): GitHub username or organization name
-        repo (str): GitHub repository name
+        repo (str): GitHub repository in the format "username/repo" (e.g. "google/adk-python")
         path (str): Path within the repository to start from (default: root)
         branch (str): Branch to get structure from (default: 'main')
         exclude_patterns (Optional[List[str]]): List of patterns to exclude (e.g., ["node_modules/", ".git/"])
@@ -49,11 +47,6 @@ def get_repo_file_structure(
             github_token = os.getenv("GITHUB_TOKEN")
             if github_token and tool_context:
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
-            # else:
-            #     return {
-            #         'status': 'error', 
-            #         'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-            #     }
 
         headers = {
             "Accept": "application/vnd.github.v3+json",
@@ -62,14 +55,14 @@ def get_repo_file_structure(
 
         # First, get the commit SHA for the branch
         print(f"Fetching latest commit SHA for branch: {branch}")
-        branch_url = f"https://api.github.com/repos/{username}/{repo}/branches/{branch}"
+        branch_url = f"https://api.github.com/repos/{repo}/branches/{branch}"
         branch_response = requests.get(branch_url, headers=headers)
         branch_response.raise_for_status()
         commit_sha = branch_response.json()["commit"]["sha"]
 
         # Get the full tree with recursive=1
         print(f"Fetching complete repository tree...")
-        tree_url = f"https://api.github.com/repos/{username}/{repo}/git/trees/{commit_sha}?recursive=1"
+        tree_url = f"https://api.github.com/repos/{repo}/git/trees/{commit_sha}?recursive=1"
         response = requests.get(tree_url, headers=headers)
         response.raise_for_status()
         tree_data = response.json()
@@ -168,13 +161,10 @@ def get_repo_file_structure(
                 tool_context.state[GATHERED_CONTEXT_KEY] = {}
             
             # Determine which repo this is and store accordingly
-            # Note: Files will be stored in python_context_files and typescript_context_files
-            repo_key = f"{username}/{repo}"
-            if repo_key == "google/adk-python" or "adk-python" in repo:
+            if "adk-python" in repo or "google" in repo.split('/')[0]:
                 tool_context.state[GATHERED_CONTEXT_KEY]['python_repo_structure'] = result
             else:
                 # Default to TypeScript for all other repositories
-                # This simplifies our implementation to focus on just Python and TypeScript
                 tool_context.state[GATHERED_CONTEXT_KEY]['typescript_repo_structure'] = result
 
         # Format and print the tree data in a more readable way
@@ -213,8 +203,7 @@ def print_repo_file_structure(structure: List[Dict[str, Any]], indent: int = 0) 
 if __name__ == "__main__":
     # Example usage
     try:
-        test_username = "njraladdin"
-        test_repo = "adk-typescript"
+        test_repo = "njraladdin/adk-typescript"
         test_branch = "main"
         
         # Custom exclude patterns
@@ -228,9 +217,8 @@ if __name__ == "__main__":
         # Create mock context for direct script execution
         mock_context = MockToolContext()
         
-        print(f"Fetching repository file structure for {test_username}/{test_repo}:")
+        print(f"Fetching repository file structure for {test_repo}:")
         result = get_repo_file_structure(
-            test_username,
             test_repo,
             branch=test_branch,
             exclude_patterns=exclude,

@@ -49,7 +49,7 @@ class GatheredContext(BaseModel):
 # This agent's only job is to collect all information and store it in session state.
 context_gatherer_agent = Agent(
     name="ContextGatherer",
-    model="gemini-1.5-pro-latest",
+    model="gemini-2.5-flash",
     tools=[get_commit_diff, get_repo_file_structure, get_file_content],
     after_agent_callback=save_gathered_context,
     
@@ -78,19 +78,17 @@ context_gatherer_agent = Agent(
        - The tool will automatically store commit info in the session state.
 
     2. Call `get_repo_file_structure` for both repositories:
-       - For Python: username='google', repo='adk-python'
-       - For TypeScript: username='njraladdin', repo='adk-typescript'
+       - For Python: repo='google/adk-python'
+       - For TypeScript: repo='njraladdin/adk-typescript'
        - The tool will automatically store repo structures in the session state.
 
     3. For each changed Python file from the commit diff, call `get_file_content` with:
-       - username='google'
-       - repo='adk-python'
+       - repo='google/adk-python'
        - file_path=<path to the Python file>
        - The tool will automatically store these in 'python_context_files'.
 
     4. For each equivalent TypeScript file you identify (if any), call `get_file_content` with:
-       - username='njraladdin'
-       - repo='adk-typescript'
+       - repo='njraladdin/adk-typescript'
        - file_path=<path to the TypeScript file>
        - The tool will automatically store these in 'typescript_context_files'.
 
@@ -102,7 +100,7 @@ context_gatherer_agent = Agent(
 
     6. Gather additional TypeScript context files:
        - Analyze each TypeScript file you've collected
-       - Identify any imports of local modules (e.g., `import { Helper } from '../utils'`)
+       - Identify any imports of local modules (e.g., `import  Helper  from '../utils'`)
        - For each local import, call `get_file_content` with the TypeScript repo details
        - The tool will automatically store these in 'typescript_context_files'
 
@@ -113,34 +111,34 @@ context_gatherer_agent = Agent(
 
     - **INPUT:** Commit 'a1b2c3d4'
 
-    - **YOUR ACTION (Step 1):** Call `get_commit_diff(username='google', repo='adk-python', commit_sha='a1b2c3d4')`.
+    - **YOUR ACTION (Step 1):** Call `get_commit_diff(repo='google/adk-python', commit_sha='a1b2c3d4')`.
       - Result: Changed file is `google/adk/agents/base_agent.py`.
       - The tool automatically stores this in the session state under 'commit_info'.
 
     - **YOUR ACTION (Step 2):** 
-      - Call `get_repo_file_structure(username='google', repo='adk-python')`.
-      - Call `get_repo_file_structure(username='njraladdin', repo='adk-typescript')`.
+      - Call `get_repo_file_structure(repo='google/adk-python')`.
+      - Call `get_repo_file_structure(repo='njraladdin/adk-typescript')`.
       - The tool automatically stores these in 'python_repo_structure' and 'typescript_repo_structure'.
 
-    - **YOUR ACTION (Step 3):** Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/agents/base_agent.py')`.
+    - **YOUR ACTION (Step 3):** Call `get_file_content(repo='google/adk-python', file_path='google/adk/agents/base_agent.py')`.
       - The tool automatically stores this in 'python_context_files'.
 
     - **YOUR ACTION (Step 4):** You determine the equivalent file is `src/agents/base-agent.ts`. 
-      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/agents/base-agent.ts')`.
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/base-agent.ts')`.
       - The tool automatically stores this in 'typescript_context_files'.
 
     - **YOUR ACTION (Step 5 - Additional Python Context):** You analyze `base_agent.py` and see it imports:
       - `from ..events.event import Event`
       - `from ..utils.logger import Logger`
-      - Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/events/event.py')`.
-      - Call `get_file_content(username='google', repo='adk-python', file_path='google/adk/utils/logger.py')`.
+      - Call `get_file_content(repo='google/adk-python', file_path='google/adk/events/event.py')`.
+      - Call `get_file_content(repo='google/adk-python', file_path='google/adk/utils/logger.py')`.
       - Both files are automatically stored in 'python_context_files'.
 
     - **YOUR ACTION (Step 6 - Additional TypeScript Context):** You analyze `base-agent.ts` and see it imports:
-      - `import { Event } from '../events/event'`
-      - `import { Logger } from '../utils/logger'`
-      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/events/event.ts')`.
-      - Call `get_file_content(username='njraladdin', repo='adk-typescript', file_path='src/utils/logger.ts')`.
+      - `import  Event  from '../events/event'`
+      - `import Logger  from '../utils/logger'`
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/events/event.ts')`.
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/utils/logger.ts')`.
       - Both files are automatically stored in 'typescript_context_files'.
 
     - **YOUR ACTION (Step 7 - Summary):** Provide a brief summary of all the files you've collected:
@@ -155,7 +153,7 @@ context_gatherer_agent = Agent(
 # This agent receives the context from session state and performs the translation.
 code_translator_agent = Agent(
     name="CodeTranslator",
-    model="gemini-1.5-pro-latest",
+    model="gemini-2.5-flash",
     tools=[write_local_file],
     
     instruction="""
@@ -195,7 +193,7 @@ code_translator_tool = agent_tool.AgentTool(agent=code_translator_agent)
 # This is the agent you will interact with directly via chat.
 root_agent = Agent(
     name="CodePorterCoordinator",
-    model="gemini-1.5-pro-latest",
+    model="gemini-2.5-flash",
     
     # Provide the sub-agents as tools to the coordinator.
     tools=[
