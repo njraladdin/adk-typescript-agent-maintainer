@@ -205,33 +205,21 @@ code_translator_agent = Agent(
 
     All necessary context has been gathered and loaded into the session state from a JSON file. You must:
 
-    1. Analyze the commit information provided above:
-       - Review the commit SHA and description
-       - Study the diff to understand exactly what changed
-       - Note which files were modified
+    1. **ANALYZE:** Thoroughly analyze the Python changes and TypeScript codebase:
+       - Study the commit diff to understand exactly what changed in the Python code
+       - Identify the equivalent TypeScript file locations for each changed Python file
+       - Review existing TypeScript code to understand patterns and conventions
+       - Plan your translation approach to maintain consistency with the TypeScript codebase
 
-    2. For each changed Python file:
-       - Study the Python changes in detail
-       - Identify the equivalent TypeScript file location
-       - Review any existing TypeScript code in that location
-       - Plan your translation approach
+    2. **WRITE:** Translate and write each file:
+        - For each file that needs to be created or updated, immediately generate a `write_local_file` tool call.
+        - The `file_path` parameter should contain just the repository path (e.g., `src/agents/base-agent.ts`)
+        - The `content` parameter must contain the **ENTIRE,
+          FINAL, and COMPLETE** translated TypeScript code for that file as a single string.
 
-    3. For each translation:
-       - Ensure proper TypeScript type annotations
-       - Maintain consistent code style with the existing TypeScript
-       - Preserve all functionality from the Python changes
-       - Add appropriate JSDoc comments where helpful
-       - Follow TypeScript best practices and idioms
-
-    4. Write each translated file:
-       - Use the `write_local_file` tool
-       - Save to the `output/` directory
-       - Maintain the same relative path structure
-       - Example: Python `src/foo.py` → `output/src/foo.ts`
-
-    5. After all translations:
-       - Provide a summary of all files translated
-       - Confirm all files were saved successfully
+    3. **SUMMARIZE:** Provide a concise summary:
+       - List all files translated
+       - Highlight key changes and translation decisions
        - Note any special considerations or potential issues
 
     ---
@@ -259,29 +247,36 @@ code_translator_agent = Agent(
       ```
 
     - **YOUR ACTIONS:**
-      1. Analyze commit a1b2c3d4's changes to base_agent.py
-      2. Study the existing base-agent.ts implementation
-      3. Translate the Python changes to TypeScript:
-         ```typescript
-         // Original Python:
-         def process_event(self, event: Event) -> None:
-             self.logger.debug(f"Processing event: {event}")
-             # ... new code ...
-
-         // Your TypeScript translation:
-         public processEvent(event: Event): void {
-             this.logger.debug(`Processing event: ${event}`);
-             // ... translated new code ...
-         }
-         ```
-      4. Write the complete file:
+      1. **ANALYZE:** Study commit a1b2c3d4's changes to base_agent.py and the existing base-agent.ts implementation
+      
+      2. **WRITE:** Immediately translate and write each file that needs to be updated:
          ```python
+         # After analyzing the changes, immediately call write_local_file with the complete translated content
          write_local_file(
-             file_path='output/src/agents/base-agent.ts',
-             content='... full translated content ...'
+             issue_number=123,
+             file_path='src/agents/base-agent.ts',
+             content='''// Complete TypeScript file content goes here
+import { Event } from '../events/event';
+import { Logger } from '../utils/logger';
+
+export class BaseAgent {
+    private logger: Logger;
+    
+    constructor(logger: Logger) {
+        this.logger = logger;
+    }
+    
+    public processEvent(event: Event): void {
+        this.logger.debug(`Processing event: ${event}`);
+        // Full implementation with all translated changes
+    }
+    
+    // Rest of the complete file content...
+}'''
          )
          ```
-      5. Provide summary:
+         
+      3. **SUMMARIZE:** 
          "Successfully translated changes from base_agent.py to base-agent.ts. 
           The main changes involved updating the event processing logic while 
           maintaining TypeScript type safety and existing code patterns."

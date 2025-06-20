@@ -21,7 +21,7 @@ progress:
 -coder context gatherer agent is working.
 
 quick updates:
-code translate needs to work with both getting passed the data from preivous agnet or from lastest saved json file in debug_output 
+eval test for code writer with previous gathered_context
 
 code writer: (prework for cloning repo in agent workspace) write code, validate by building and running tests, correct if necessary 
 
