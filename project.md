@@ -18,11 +18,13 @@
 - send to agent 
 
 progress: 
+-coder context gatherer agent is working.
 
-seperated agent into manager and coder. currently working on coder
+quick updates:
+code translate needs to work with both getting passed the data from preivous agnet or from lastest saved json file in debug_output 
 
-coder has 2 sub agents:  context retrieval & code writer. fix some detaisl in context retrieval and finish coder. then test agent 
+code writer: (prework for cloning repo in agent workspace) write code, validate by building and running tests, correct if necessary 
 
-manager agent is practically finished with some clean up 
+estimated finish : saturday 
 
-estimated finish : friday 
+https://aistudio.google.com/app/prompts/13fFbKwI35U4bmiGjm9t-OMqVDXL0wIin

@@ -1,10 +1,11 @@
 import json
 import os
+import glob
 from google.adk.agents.callback_context import CallbackContext
 from typing import Optional, Any
 
 # Define the output directory at a single, clear location
-ARTIFACTS_DIR = "debug_output"
+ARTIFACTS_DIR = "debug_output"  
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
@@ -60,8 +61,13 @@ def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
                 # Use indent for readability
                 json.dump(serializable_context, f, indent=2)
             print(f"CALLBACK: Successfully saved context artifact.")
+            
+            # Store the path to the saved file in the session state
+            callback_context.state['context_artifact_path'] = output_path
+            
         except Exception as e:
             print(f"CALLBACK: Error saving context artifact: {e}")
             
     # This callback doesn't need to alter the agent's flow, so it returns None.
     return None 
+

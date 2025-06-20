@@ -150,30 +150,145 @@ context_gatherer_agent = Agent(
 )
 
 # --- Agent 2: Code Translator ---
-# This agent receives the context from session state and performs the translation.
+# This agent loads context from a JSON file and performs the translation.
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
     tools=[write_local_file],
     
     instruction="""
-    You are an expert Python-to-TypeScript developer specializing in code migration.
-    All the necessary context has been gathered and stored in the session state by the previous agent.
-    The session state contains:
-    - commit_info: Details about the source commit including SHA, diff, and changed files
-    - python_repo_structure: The file structure of the Python repository
-    - typescript_repo_structure: The file structure of the TypeScript repository  
-    - python_context_files: Content of all Python files (both changed files and additional context)
-    - typescript_context_files: Content of all TypeScript files (both equivalent files and additional context)
+    You are an expert Python-to-TypeScript code translator specializing in accurate and idiomatic code migration.
 
-    YOUR TASK:
-    1.  Access and analyze the gathered context from the session state.
-    2.  For each changed Python file, write the new, updated TypeScript equivalent, applying the logic from the Python diff.
-    3.  Ensure your code adheres to TypeScript best practices, is well-typed, and idiomatic.
-    4.  Use the `write_local_file` tool to save each newly generated TypeScript file. The path should be relative to an `output/` directory (e.g., 'output/src/new-file.ts').
-    5.  After all files are written, provide a summary of what was translated and confirm that all files have been saved.
+    ---
+    **MISSION CONTEXT**
 
-    Remember: All the context you need is already available in the session state - you don't need to fetch any additional information.
+    You are working on a project to port features from a primary Python repository to its TypeScript equivalent.
+
+    - **SOURCE REPOSITORY:** `google/adk-python`
+      - This is the official Python Agent Development Kit where new features and bug fixes originate.
+      - The context gatherer has already collected all relevant Python files and their content.
+
+    - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
+      - This is the TypeScript port of the Python library.
+      - Your goal is to accurately translate the Python changes into their TypeScript equivalents.
+    ---
+
+    **COMMIT INFORMATION**
+    
+    Commit SHA: {gathered_context.commit_info.commit_sha}
+    
+    Changed files:
+    {gathered_context.commit_info.changed_files}
+    
+    Diff:
+    ```diff
+    {gathered_context.commit_info.diff}
+    ```
+
+    **PYTHON SOURCE PROJECT**
+    
+    Repository Structure:
+    {gathered_context.python_repo_structure}
+    
+    Source Files (Changed in this commit):
+    {gathered_context.python_context_files}
+    
+    **TYPESCRIPT TARGET PROJECT**
+    
+    Repository Structure:
+    {gathered_context.typescript_repo_structure}
+    
+    Target Files:
+    {gathered_context.typescript_context_files}
+
+    **YOUR TASK STEPS**
+
+    All necessary context has been gathered and loaded into the session state from a JSON file. You must:
+
+    1. Analyze the commit information provided above:
+       - Review the commit SHA and description
+       - Study the diff to understand exactly what changed
+       - Note which files were modified
+
+    2. For each changed Python file:
+       - Study the Python changes in detail
+       - Identify the equivalent TypeScript file location
+       - Review any existing TypeScript code in that location
+       - Plan your translation approach
+
+    3. For each translation:
+       - Ensure proper TypeScript type annotations
+       - Maintain consistent code style with the existing TypeScript
+       - Preserve all functionality from the Python changes
+       - Add appropriate JSDoc comments where helpful
+       - Follow TypeScript best practices and idioms
+
+    4. Write each translated file:
+       - Use the `write_local_file` tool
+       - Save to the `output/` directory
+       - Maintain the same relative path structure
+       - Example: Python `src/foo.py` → `output/src/foo.ts`
+
+    5. After all translations:
+       - Provide a summary of all files translated
+       - Confirm all files were saved successfully
+       - Note any special considerations or potential issues
+
+    ---
+    **EXAMPLE SCENARIO**
+
+    - **SESSION STATE CONTAINS:**
+      ```python
+      {
+          'commit_info': {
+              'commit_sha': 'a1b2c3d4',
+              'diff': '... shows changes to base_agent.py ...',
+              'changed_files': ['google/adk/agents/base_agent.py']
+          },
+          'python_context_files': {
+              'google/adk/agents/base_agent.py': '... full file content ...',
+              'google/adk/events/event.py': '... imported module content ...',
+              'google/adk/utils/logger.py': '... imported module content ...'
+          },
+          'typescript_context_files': {
+              'src/agents/base-agent.ts': '... existing TypeScript code ...',
+              'src/events/event.ts': '... existing TypeScript code ...',
+              'src/utils/logger.ts': '... existing TypeScript code ...'
+          }
+      }
+      ```
+
+    - **YOUR ACTIONS:**
+      1. Analyze commit a1b2c3d4's changes to base_agent.py
+      2. Study the existing base-agent.ts implementation
+      3. Translate the Python changes to TypeScript:
+         ```typescript
+         // Original Python:
+         def process_event(self, event: Event) -> None:
+             self.logger.debug(f"Processing event: {event}")
+             # ... new code ...
+
+         // Your TypeScript translation:
+         public processEvent(event: Event): void {
+             this.logger.debug(`Processing event: ${event}`);
+             // ... translated new code ...
+         }
+         ```
+      4. Write the complete file:
+         ```python
+         write_local_file(
+             file_path='output/src/agents/base-agent.ts',
+             content='... full translated content ...'
+         )
+         ```
+      5. Provide summary:
+         "Successfully translated changes from base_agent.py to base-agent.ts. 
+          The main changes involved updating the event processing logic while 
+          maintaining TypeScript type safety and existing code patterns."
+
+    Remember: Your goal is to produce production-ready TypeScript code that accurately 
+    reflects the Python changes while following TypeScript best practices and maintaining 
+    consistency with the existing codebase.
     """
 )
 
@@ -203,8 +318,8 @@ root_agent = Agent(
     
     instruction="""
     You are an expert coordinator for a code porting workflow. You have two main sub-agents available as tools:
-    1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit. The tool will automatically store all gathered information in the session state, organizing files into 'python_context_files' and 'typescript_context_files'.
-    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically access the context from the session state that was populated by the ContextGatherer.
+    1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit. The tool will automatically store all gathered information in the session state and save it to a JSON file.
+    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically load the context from the most recent JSON file saved by the ContextGatherer.
 
     Your job is to understand the user's request and orchestrate the workflow.
 
@@ -213,7 +328,7 @@ root_agent = Agent(
     - If the user explicitly asks to ONLY gather context for a commit ID, just call the `ContextGatherer` tool and report on what was collected.
     
     - If the user asks to ONLY translate (assuming context is already gathered), call the `CodeTranslator` tool.
-
-    The session state automatically handles data persistence between the two agents, so you don't need to worry about passing data manually.
+    
+    This modular approach makes it easier to test each agent separately and ensures the workflow can be resumed at any point.
     """,
 )
