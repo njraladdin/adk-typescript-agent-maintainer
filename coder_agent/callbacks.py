@@ -71,3 +71,56 @@ def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     # This callback doesn't need to alter the agent's flow, so it returns None.
     return None 
 
+def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
+    """
+    A before-agent callback that checks if 'gathered_context' is in the session state.
+    If not, it finds the latest context JSON file in the debug_output directory and loads it.
+    """
+    # Only proceed if 'gathered_context' is not already in the state
+    if 'gathered_context' not in callback_context.state:
+        print("CALLBACK: 'gathered_context' not found in session state. Attempting to load from file...")
+        
+        try:
+            # Ensure the artifacts directory exists
+            if not os.path.exists(ARTIFACTS_DIR):
+                print(f"CALLBACK: Directory {ARTIFACTS_DIR} does not exist. No context files to load.")
+                return None
+                
+            # Find all context files
+            context_files = glob.glob(os.path.join(ARTIFACTS_DIR, "context__*.json"))
+            
+            if not context_files:
+                print(f"CALLBACK: No context files found in {ARTIFACTS_DIR}.")
+                return None
+                
+            # Sort by modification time (newest first)
+            latest_file = max(context_files, key=os.path.getmtime)
+            
+            print(f"CALLBACK: Found latest context file: {latest_file}")
+            
+            # Load the JSON data
+            with open(latest_file, "r", encoding="utf-8") as f:
+                context_data = json.load(f)
+            
+            # Create a properly structured gathered_context object
+            gathered_context = {
+                'commit_info': context_data.get('commit_info', {}),
+                'python_repo_structure': context_data.get('python_repo_structure', {}),
+                'typescript_repo_structure': context_data.get('typescript_repo_structure', {}),
+                'python_context_files': context_data.get('python_context_files', {}),
+                'typescript_context_files': context_data.get('typescript_context_files', {})
+            }
+                
+            # Store the loaded context in the session state
+            callback_context.state['gathered_context'] = gathered_context
+            print(f"CALLBACK: Successfully loaded context from {latest_file}")
+            
+            # Also store the path to the loaded file
+            callback_context.state['context_artifact_path'] = latest_file
+            
+        except Exception as e:
+            print(f"CALLBACK: Error loading context from file: {e}")
+    
+    # This callback doesn't need to alter the agent's flow, so it returns None.
+    return None
+

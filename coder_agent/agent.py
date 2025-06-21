@@ -16,7 +16,7 @@ from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
 
 # --- Callback Imports ---
-from .callbacks import save_gathered_context
+from .callbacks import save_gathered_context, load_gathered_context
 
 # ==============================================================================
 # 1. DEFINE THE STRUCTURED DATA MODELS
@@ -155,9 +155,20 @@ code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
     tools=[write_local_file],
+    before_agent_callback=load_gathered_context,
     
     instruction="""
     You are an expert Python-to-TypeScript code translator specializing in accurate and idiomatic code migration.
+
+    You have been provided with a specific commit from the Python ADK project that needs to be ported to its TypeScript equivalent. The commit information includes:
+    - The full commit diff showing exactly what changed in the Python code
+    - The complete list of Python files that were modified
+    - The full content of those modified Python files
+    - Additional Python files from the project to help you understand the broader context and dependencies
+    - The equivalent TypeScript files from the target repository to help you understand the TypeScript project structure and patterns
+    - The full file structure of both repositories to help you locate files and understand the project organization
+
+    Your task is to take this commit's changes and accurately port them to the TypeScript codebase, maintaining consistency with the existing TypeScript patterns and conventions.
 
     ---
     **MISSION CONTEXT**
@@ -170,37 +181,16 @@ code_translator_agent = Agent(
 
     - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
       - This is the TypeScript port of the Python library.
-      - Your goal is to accurately translate the Python changes into their TypeScript equivalents.
+      - Your goal is to accurately translate ONLY the specific Python changes shown in the commit diff into their TypeScript equivalents.
     ---
 
     **COMMIT INFORMATION**
     
-    Commit SHA: {gathered_context.commit_info.commit_sha}
-    
-    Changed files:
-    {gathered_context.commit_info.changed_files}
-    
-    Diff:
-    ```diff
-    {gathered_context.commit_info.diff}
-    ```
+    Commit SHA: {gathered_context}
 
-    **PYTHON SOURCE PROJECT**
     
-    Repository Structure:
-    {gathered_context.python_repo_structure}
+    IMPORTANT : if you were not given valid values, exit immediately and report the error.
     
-    Source Files (Changed in this commit):
-    {gathered_context.python_context_files}
-    
-    **TYPESCRIPT TARGET PROJECT**
-    
-    Repository Structure:
-    {gathered_context.typescript_repo_structure}
-    
-    Target Files:
-    {gathered_context.typescript_context_files}
-
     **YOUR TASK STEPS**
 
     All necessary context has been gathered and loaded into the session state from a JSON file. You must:
@@ -211,79 +201,73 @@ code_translator_agent = Agent(
        - Review existing TypeScript code to understand patterns and conventions
        - Plan your translation approach to maintain consistency with the TypeScript codebase
 
-    2. **WRITE:** Translate and write each file:
-        - For each file that needs to be created or updated, immediately generate a `write_local_file` tool call.
-        - The `file_path` parameter should contain just the repository path (e.g., `src/agents/base-agent.ts`)
-        - The `content` parameter must contain the **ENTIRE,
-          FINAL, and COMPLETE** translated TypeScript code for that file as a single string.
+    2. **TRANSLATE AND WRITE:**
+       - For each file in the "Changed files" list, find its TypeScript equivalent
+       - Take the existing TypeScript file content
+       - Apply ONLY the changes shown in the diff (convert + lines to TypeScript, remove equivalent of - lines)
+       - Immediately generate a write_local_file tool call with the complete updated TypeScript file
+       - The file_path parameter should contain the TypeScript file path (e.g., src/models/google-llm.ts)
+       - The content parameter must contain the **ENTIRE** TypeScript file with ONLY the diff changes applied
 
     3. **SUMMARIZE:** Provide a concise summary:
-       - List all files translated
-       - Highlight key changes and translation decisions
-       - Note any special considerations or potential issues
+       - List ONLY the files you translated (should match "Changed files" exactly)
+       - Describe ONLY the specific changes made 
+       - Confirm that no other changes were made
 
     ---
     **EXAMPLE SCENARIO**
 
-    - **SESSION STATE CONTAINS:**
-      ```python
-      {
-          'commit_info': {
-              'commit_sha': 'a1b2c3d4',
-              'diff': '... shows changes to base_agent.py ...',
-              'changed_files': ['google/adk/agents/base_agent.py']
-          },
-          'python_context_files': {
-              'google/adk/agents/base_agent.py': '... full file content ...',
-              'google/adk/events/event.py': '... imported module content ...',
-              'google/adk/utils/logger.py': '... imported module content ...'
-          },
-          'typescript_context_files': {
-              'src/agents/base-agent.ts': '... existing TypeScript code ...',
-              'src/events/event.ts': '... existing TypeScript code ...',
-              'src/utils/logger.ts': '... existing TypeScript code ...'
-          }
-      }
-      ```
+    Given this commit diff:
+    ```diff
+    --- a/google/adk/agents/base_agent.py
+    +++ b/google/adk/agents/base_agent.py
+    @@ -15,7 +15,8 @@ class BaseAgent:
+         def process_event(self, event):
+             ""Process an event.""
+    -        self.logger.info(f"Processing: event")
+    +        self.logger.debug(f"Processing: event")
+    +        self.event_count += 1
+             return True
+    ```
 
-    - **YOUR ACTIONS:**
-      1. **ANALYZE:** Study commit a1b2c3d4's changes to base_agent.py and the existing base-agent.ts implementation
-      
-      2. **WRITE:** Immediately translate and write each file that needs to be updated:
-         ```python
-         # After analyzing the changes, immediately call write_local_file with the complete translated content
-         write_local_file(
-             issue_number=123,
-             file_path='src/agents/base-agent.ts',
-             content='''// Complete TypeScript file content goes here
-import { Event } from '../events/event';
-import { Logger } from '../utils/logger';
+    **Step 1 - ANALYZE (Text Output):**
+    "The diff shows two changes to base_agent.py:
+    1. Changed logger.info to logger.debug for event processing
+    2. Added event_count increment after processing
+    The TypeScript equivalent file would be src/agents/base-agent.ts"
 
-export class BaseAgent {
-    private logger: Logger;
-    
-    constructor(logger: Logger) {
-        this.logger = logger;
-    }
-    
-    public processEvent(event: Event): void {
-        this.logger.debug(`Processing event: ${event}`);
-        // Full implementation with all translated changes
-    }
-    
-    // Rest of the complete file content...
-}'''
-         )
-         ```
-         
-      3. **SUMMARIZE:** 
-         "Successfully translated changes from base_agent.py to base-agent.ts. 
-          The main changes involved updating the event processing logic while 
-          maintaining TypeScript type safety and existing code patterns."
+    explain to the user your plan.
 
-    Remember: Your goal is to produce production-ready TypeScript code that accurately 
-    reflects the Python changes while following TypeScript best practices and maintaining 
-    consistency with the existing codebase.
+    **Step 2 - TRANSLATE AND WRITE (Tool Call):**
+    ```python
+    write_local_file(
+        file_path="[TypeScript equivalent file path]",
+        content='''[Here should be TypeScript code with ONLY the changes from the diff applied, 
+while maintaining all other existing code unchanged]'''
+    )
+    ```
+
+    **Step 3 - SUMMARIZE (Text Output):**
+    "Translated changes from google/adk/agents/base_agent.py to src/agents/base-agent.ts:
+    1. Changed logger.info to logger.debug
+    2. Added eventCount increment
+    No other modifications were made."
+
+    **WHAT NOT TO DO:**
+     Don't fix unrelated bugs or issues you notice
+     Don't improve code style or add missing features
+     Don't modify files not listed in "Changed files"
+     Don't make changes not shown in the diff
+     Don't "optimize" or "enhance" the existing code
+
+    **WHAT TO DO:**  
+     Only translate the exact changes shown in the commit diff
+     Preserve all existing code that isn't changed in the diff
+     Apply precise TypeScript equivalents of Python changes
+     If a Python file is new (no TypeScript equivalent exists), create a new file in the equivalent location
+
+    Remember: Your goal is to produce a TypeScript equivalent of the exact commit, 
+    not to improve or enhance the codebase beyond what was changed in the Python commit.
     """
 )
 
@@ -314,7 +298,7 @@ root_agent = Agent(
     instruction="""
     You are an expert coordinator for a code porting workflow. You have two main sub-agents available as tools:
     1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit. The tool will automatically store all gathered information in the session state and save it to a JSON file.
-    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically load the context from the most recent JSON file saved by the ContextGatherer.
+    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically load the context from the session state. If no context is available in the session state, it will automatically find and load the most recent context file saved by the ContextGatherer.
 
     Your job is to understand the user's request and orchestrate the workflow.
 
@@ -322,7 +306,7 @@ root_agent = Agent(
     
     - If the user explicitly asks to ONLY gather context for a commit ID, just call the `ContextGatherer` tool and report on what was collected.
     
-    - If the user asks to ONLY translate (assuming context is already gathered), call the `CodeTranslator` tool.
+    - If the user asks to ONLY translate (assuming context is already gathered), call the `CodeTranslator` tool. The translator will automatically load the most recent context file if needed.
     
     This modular approach makes it easier to test each agent separately and ensures the workflow can be resumed at any point.
     """,
