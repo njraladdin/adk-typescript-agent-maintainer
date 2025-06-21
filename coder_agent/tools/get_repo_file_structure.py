@@ -39,6 +39,9 @@ def get_repo_file_structure(
             - data: List[Dict[str, Any]] List of file/directory objects
             - message: str (Error message if status is 'error')
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[GET_REPO_FILE_STRUCTURE] repo={repo} branch={branch} path={path}")
+    
     try:
         # Get token from context
         github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
@@ -179,17 +182,27 @@ def get_repo_file_structure(
 
         # Skip the flat list output and only use the hierarchical tree structure
         # that's already implemented in print_repo_file_structure()
-        return {
+        result_data = {
             "status": "success",
             "data": result
         }
+        
+        # Log the output of the tool execution
+        print(f"[GET_REPO_FILE_STRUCTURE] : output status={result_data['status']}, found {len(result)} top-level items")
+        
+        return result_data
 
     except RequestException as error:
         if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
             tool_context.state[TOKEN_CACHE_KEY] = None
-            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        print(f"Error fetching repository file structure: {error}")
-        return {'status': 'error', 'message': str(error)}
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error fetching repository file structure: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
+        # Log the error output
+        print(f"[GET_REPO_FILE_STRUCTURE] : output status=error, message={error_result['message']}")
+        return error_result
 
 def print_repo_file_structure(structure: List[Dict[str, Any]], indent: int = 0) -> None:
     """Helper function to print the repository file structure in a tree-like format."""

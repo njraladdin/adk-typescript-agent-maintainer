@@ -25,6 +25,9 @@ def create_issue(
     Returns:
         Dict[str, Any]: The created issue data from GitHub API
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[CREATE_ISSUE] username={username} repo={repo} title={title}")
+    
     try:
         # Step 1: Check for cached token
         github_token = tool_context.state.get(TOKEN_CACHE_KEY)
@@ -39,10 +42,13 @@ def create_issue(
                 # Cache the token for future use
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
             else:
-                return {
+                error_result = {
                     'status': 'error', 
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
+                # Log the error output
+                print(f"[CREATE_ISSUE] : output status=error, message={error_result['message']}")
+                return error_result
 
         # Step 2: Make authenticated API call
         url = f"https://api.github.com/repos/{username}/{repo}/issues"
@@ -62,20 +68,30 @@ def create_issue(
         
         # Step 3: Return success response
         result = response.json()
-        return {
+        success_result = {
             "status": "success",
             "data": result,
             "html_url": result.get("html_url"),
             "number": result.get("number")
         }
+        
+        # Log the output of the tool execution
+        print(f"[CREATE_ISSUE] : output status=success, issue_number={success_result['number']}, url={success_result['html_url']}")
+        
+        return success_result
     
     except RequestException as error:
         # If we get a 401/403, clear the cached token
         if hasattr(error, 'response') and error.response.status_code in (401, 403):
             tool_context.state[TOKEN_CACHE_KEY] = None
-            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        print(f"Error creating issue: {error}")
-        return {'status': 'error', 'message': str(error)}
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error creating issue: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
+        # Log the error output
+        print(f"[CREATE_ISSUE] : output status=error, message={error_result['message']}")
+        return error_result
 
 if __name__ == "__main__":
     # Example usage

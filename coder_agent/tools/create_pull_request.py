@@ -33,6 +33,9 @@ def create_pull_request(
     Raises:
         RequestException: If there's an error creating the pull request
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title={title} head_branch={head_branch} base_branch={base_branch}")
+    
     try:
         url = f"https://api.github.com/repos/{username}/{repo}/pulls"
         headers = {
@@ -66,10 +69,17 @@ def create_pull_request(
         updated_response = requests.get(pr_url, headers=headers)
         updated_response.raise_for_status()
         
-        return updated_response.json()
+        result = updated_response.json()
+        
+        # Log the output of the tool execution
+        print(f"[CREATE_PULL_REQUEST] : output status=success, pr_number={result.get('number')}, url={result.get('html_url')}")
+        
+        return result
     
     except RequestException as error:
         print(f"Error creating pull request: {error}")
+        # Log the error output
+        print(f"[CREATE_PULL_REQUEST] : output status=error, message={str(error)}")
         raise
 
 def pull_request_exists(
@@ -92,6 +102,9 @@ def pull_request_exists(
     Returns:
         bool: True if a pull request exists, False otherwise
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[PULL_REQUEST_EXISTS] username={username} repo={repo} head_branch={head_branch} base_branch={base_branch}")
+    
     try:
         url = f"https://api.github.com/repos/{username}/{repo}/pulls"
         headers = {
@@ -110,9 +123,16 @@ def pull_request_exists(
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         
-        return len(response.json()) > 0
+        exists = len(response.json()) > 0
+        
+        # Log the output of the tool execution
+        print(f"[PULL_REQUEST_EXISTS] : output exists={exists}")
+        
+        return exists
     
-    except RequestException:
+    except RequestException as error:
+        # Log the error output
+        print(f"[PULL_REQUEST_EXISTS] : output status=error, message={str(error)}")
         return False
 
 def create_pull_request_if_not_exists(
@@ -147,8 +167,11 @@ def create_pull_request_if_not_exists(
         ValueError: If a pull request already exists
         RequestException: If there's an error checking or creating the pull request
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] username={username} repo={repo} title={title} head_branch={head_branch} base_branch={base_branch}")
+    
     if not pull_request_exists(username, repo, head_branch, base_branch, github_token):
-        return create_pull_request(
+        result = create_pull_request(
             username,
             repo,
             title,
@@ -159,8 +182,18 @@ def create_pull_request_if_not_exists(
             draft,
             github_token
         )
+        
+        # Log the output of the tool execution
+        print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] : output status=success, pr_number={result.get('number')}")
+        
+        return result
     else:
-        raise ValueError(f"Pull request already exists for {head_branch} into {base_branch}")
+        error_message = f"Pull request already exists for {head_branch} into {base_branch}"
+        
+        # Log the error output
+        print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] : output status=error, message={error_message}")
+        
+        raise ValueError(error_message)
 
 if __name__ == "__main__":
     # Example usage

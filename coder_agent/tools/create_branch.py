@@ -25,6 +25,9 @@ def create_branch(
     Raises:
         RequestException: If there's an error creating the branch
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[CREATE_BRANCH] username={username} repo={repo} branch_name={branch_name} base_branch={base_branch}")
+    
     try:
         # First, get the SHA of the base branch
         base_url = f"https://api.github.com/repos/{username}/{repo}"
@@ -51,10 +54,17 @@ def create_branch(
         response = requests.post(refs_url, headers=headers, json=data)
         response.raise_for_status()
         
-        return response.json()
+        result = response.json()
+        
+        # Log the output of the tool execution
+        print(f"[CREATE_BRANCH] : output status=success, ref={result.get('ref')}")
+        
+        return result
     
     except RequestException as error:
         print(f"Error creating branch: {error}")
+        # Log the error output
+        print(f"[CREATE_BRANCH] : output status=error, message={str(error)}")
         raise
 
 def branch_exists(
@@ -75,6 +85,9 @@ def branch_exists(
     Returns:
         bool: True if the branch exists, False otherwise
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[BRANCH_EXISTS] username={username} repo={repo} branch_name={branch_name}")
+    
     try:
         url = f"https://api.github.com/repos/{username}/{repo}/git/ref/heads/{branch_name}"
         headers = {
@@ -85,9 +98,16 @@ def branch_exists(
             headers["Authorization"] = f"token {github_token}"
         
         response = requests.get(url, headers=headers)
-        return response.status_code == 200
+        exists = response.status_code == 200
+        
+        # Log the output of the tool execution
+        print(f"[BRANCH_EXISTS] : output exists={exists}")
+        
+        return exists
     
-    except RequestException:
+    except RequestException as error:
+        # Log the error output
+        print(f"[BRANCH_EXISTS] : output status=error, message={str(error)}")
         return False
 
 def create_branch_if_not_exists(
@@ -113,10 +133,23 @@ def create_branch_if_not_exists(
     Raises:
         RequestException: If there's an error checking or creating the branch
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[CREATE_BRANCH_IF_NOT_EXISTS] username={username} repo={repo} branch_name={branch_name} base_branch={base_branch}")
+    
     if not branch_exists(username, repo, branch_name, github_token):
-        return create_branch(username, repo, branch_name, base_branch, github_token)
+        result = create_branch(username, repo, branch_name, base_branch, github_token)
+        
+        # Log the output of the tool execution
+        print(f"[CREATE_BRANCH_IF_NOT_EXISTS] : output status=success, branch created")
+        
+        return result
     else:
-        raise ValueError(f"Branch '{branch_name}' already exists")
+        error_message = f"Branch '{branch_name}' already exists"
+        
+        # Log the error output
+        print(f"[CREATE_BRANCH_IF_NOT_EXISTS] : output status=error, message={error_message}")
+        
+        raise ValueError(error_message)
 
 if __name__ == "__main__":
     # Example usage

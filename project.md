@@ -20,8 +20,6 @@
 progress: 
 -coder context gatherer agent is working.
 
-test code writer with previous gathered_context
-
 code writer: (prework for cloning repo in agent workspace) write code, validate by building and running tests, correct if necessary 
 
 estimated finish : saturday 

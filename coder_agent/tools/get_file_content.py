@@ -40,6 +40,9 @@ def get_file_content(
                 - path: str (File path)
             - message: str (Error message if status is 'error')
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[GET_FILE_CONTENT] repo={repo} file_path={file_path} branch={branch or 'default'}")
+    
     try:
         # Step 1: Check for cached token
         github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
@@ -54,10 +57,13 @@ def get_file_content(
                 # Cache the token for future use
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
             elif not github_token:
-                return {
+                error_result = {
                     'status': 'error', 
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
+                # Log the error output
+                print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
+                return error_result
 
         url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
         if branch:
@@ -79,10 +85,13 @@ def get_file_content(
         metadata = meta_response.json()
         
         if isinstance(metadata, list):
-            return {
+            error_result = {
                 'status': 'error',
                 'message': f"Path '{file_path}' points to a directory, not a file"
             }
+            # Log the error output
+            print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
+            return error_result
         
         # Then get the raw content
         content_response = requests.get(url, headers=headers)
@@ -109,19 +118,29 @@ def get_file_content(
                     tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'] = {}
                 tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'][file_path] = content
         
-        return {
+        success_result = {
             'status': 'success',
             'content': content,
             'metadata': metadata
         }
+        
+        # Log the output of the tool execution
+        print(f"[GET_FILE_CONTENT] : output status=success, file_size={metadata.get('size')} bytes, name={metadata.get('name')}")
+        
+        return success_result
     
     except RequestException as error:
         # If we get a 401/403, clear the cached token
         if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
             tool_context.state[TOKEN_CACHE_KEY] = None
-            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        print(f"Error fetching file content: {error}")
-        return {'status': 'error', 'message': str(error)}
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error fetching file content: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
+        # Log the error output
+        print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
+        return error_result
 
 def file_exists(
     repo: str,
@@ -144,6 +163,9 @@ def file_exists(
             - exists: bool (True if the file exists, False otherwise)
             - message: str (Error message if status is 'error')
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[FILE_EXISTS] repo={repo} file_path={file_path} branch={branch or 'default'}")
+    
     try:
         # Step 1: Check for cached token
         github_token = tool_context.state.get(TOKEN_CACHE_KEY)
@@ -158,10 +180,13 @@ def file_exists(
                 # Cache the token for future use
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
             else:
-                return {
+                error_result = {
                     'status': 'error', 
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
+                # Log the error output
+                print(f"[FILE_EXISTS] : output status=error, message={error_result['message']}")
+                return error_result
 
         url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
         if branch:
@@ -176,22 +201,35 @@ def file_exists(
         if response.status_code == 200:
             content = response.json()
             # Make sure it's a file, not a directory
-            return {
+            exists = not isinstance(content, list)
+            success_result = {
                 'status': 'success',
-                'exists': not isinstance(content, list)
+                'exists': exists
             }
-        return {
+            # Log the output of the tool execution
+            print(f"[FILE_EXISTS] : output status=success, exists={exists}")
+            return success_result
+        
+        success_result = {
             'status': 'success',
             'exists': False
         }
+        # Log the output of the tool execution
+        print(f"[FILE_EXISTS] : output status=success, exists=False")
+        return success_result
     
     except RequestException as error:
         # If we get a 401/403, clear the cached token
         if hasattr(error, 'response') and error.response.status_code in (401, 403):
             tool_context.state[TOKEN_CACHE_KEY] = None
-            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        print(f"Error checking file existence: {error}")
-        return {'status': 'error', 'message': str(error)}
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error checking file existence: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
+        # Log the error output
+        print(f"[FILE_EXISTS] : output status=error, message={error_result['message']}")
+        return error_result
 
 if __name__ == "__main__":
     # Example usage

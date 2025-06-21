@@ -23,6 +23,9 @@ def get_file_sha(
     Returns:
         Optional[str]: The file's SHA if it exists, None otherwise
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[GET_FILE_SHA] username={username} repo={repo} file_path={file_path} branch={branch or 'default'}")
+    
     try:
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
         if branch:
@@ -38,10 +41,18 @@ def get_file_sha(
         response = requests.get(url, headers=headers)
         
         if response.status_code == 200:
-            return response.json()["sha"]
+            sha = response.json()["sha"]
+            # Log the output of the tool execution
+            print(f"[GET_FILE_SHA] : output status=success, sha={sha}")
+            return sha
+        
+        # Log the output when file doesn't exist
+        print(f"[GET_FILE_SHA] : output status=success, sha=None (file not found)")
         return None
     
-    except RequestException:
+    except RequestException as error:
+        # Log the error output
+        print(f"[GET_FILE_SHA] : output status=error, message={str(error)}")
         return None
 
 def write_file_to_repo(
@@ -71,6 +82,9 @@ def write_file_to_repo(
     Raises:
         RequestException: If there's an error writing the file
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[WRITE_FILE_TO_REPO] username={username} repo={repo} file_path={file_path} branch={branch}")
+    
     try:
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{file_path}"
         headers = {
@@ -99,10 +113,18 @@ def write_file_to_repo(
         response = requests.put(url, headers=headers, json=data)
         response.raise_for_status()
         
-        return response.json()
+        result = response.json()
+        
+        # Log the output of the tool execution
+        action = "updated" if file_sha else "created"
+        print(f"[WRITE_FILE_TO_REPO] : output status=success, action={action}, file_path={file_path}")
+        
+        return result
     
     except RequestException as error:
         print(f"Error writing file: {error}")
+        # Log the error output
+        print(f"[WRITE_FILE_TO_REPO] : output status=error, message={str(error)}")
         raise
 
 def write_files_to_repo(
@@ -130,6 +152,9 @@ def write_files_to_repo(
     Raises:
         RequestException: If there's an error writing any file
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[WRITE_FILES_TO_REPO] username={username} repo={repo} file_count={len(files)} branch={branch}")
+    
     results = []
     for file in files:
         result = write_file_to_repo(
@@ -142,6 +167,10 @@ def write_files_to_repo(
             github_token
         )
         results.append(result)
+    
+    # Log the output of the tool execution
+    print(f"[WRITE_FILES_TO_REPO] : output status=success, files_written={len(results)}")
+    
     return results
 
 if __name__ == "__main__":

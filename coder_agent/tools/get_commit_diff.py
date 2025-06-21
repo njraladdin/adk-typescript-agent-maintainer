@@ -186,6 +186,9 @@ def get_commit_diff(
             - diff: CommitDiffResponse (Structured diff object containing file diffs and stats)
             - message: str (Error message if status is 'error')
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[GET_COMMIT_DIFF] username={username} repo={repo} commit_sha={commit_sha}")
+    
     try:
         # Step 1: Check for cached token
         github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
@@ -200,10 +203,13 @@ def get_commit_diff(
                 # Cache the token for future use
                 tool_context.state[TOKEN_CACHE_KEY] = github_token
             elif not github_token:
-                return {
+                error_result = {
                     'status': 'error', 
                     'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
                 }
+                # Log the error output
+                print(f"[GET_COMMIT_DIFF] : output status=error, message={error_result['message']}")
+                return error_result
 
         headers = {}
         if github_token:
@@ -233,17 +239,27 @@ def get_commit_diff(
                 'changed_files': [file_info['file'] for file_info in diff_data['files']]
             }
         
-        return {
+        success_result = {
             'status': 'success',
             'diff': diff_data
         }
+        
+        # Log the output of the tool execution
+        print(f"[GET_COMMIT_DIFF] : output status=success, files_changed={diff_data['total_files_changed']}, additions={diff_data['total_additions']}, deletions={diff_data['total_deletions']}")
+        
+        return success_result
     except RequestException as error:
         # If we get a 401/403, clear the cached token
         if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
             tool_context.state[TOKEN_CACHE_KEY] = None
-            return {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        print(f"Error fetching commit diff: {error}")
-        return {'status': 'error', 'message': str(error)}
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error fetching commit diff: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
+        # Log the error output
+        print(f"[GET_COMMIT_DIFF] : output status=error, message={error_result['message']}")
+        return error_result
 
 if __name__ == "__main__":
     # Example usage
