@@ -14,6 +14,7 @@ from .tools.get_commit_diff import get_commit_diff
 from .tools.get_repo_file_structure import get_repo_file_structure
 from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
+from .tools.build_typescript_project import build_typescript_project
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
@@ -154,7 +155,7 @@ context_gatherer_agent = Agent(
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
-    tools=[write_local_file],
+    tools=[write_local_file, build_typescript_project],
     before_agent_callback=load_gathered_context,
     
     instruction="""
@@ -209,7 +210,12 @@ code_translator_agent = Agent(
        - The file_path parameter should contain the TypeScript file path (e.g., src/models/google-llm.ts)
        - The content parameter must contain the **ENTIRE** TypeScript file with ONLY the diff changes applied
 
-    3. **SUMMARIZE:** Provide a concise summary:
+    3. **BUILD AND VERIFY:**
+       - After writing all translated files, call build_typescript_project to ensure the changes compile correctly
+       - If the build fails, analyze the errors and fix any TypeScript-specific issues
+       - Repeat the write/build cycle until the project builds successfully
+
+    4. **SUMMARIZE:** Provide a concise summary:
        - List ONLY the files you translated (should match "Changed files" exactly)
        - Describe ONLY the specific changes made 
        - Confirm that no other changes were made
@@ -247,10 +253,16 @@ while maintaining all other existing code unchanged]'''
     )
     ```
 
-    **Step 3 - SUMMARIZE (Text Output):**
+    **Step 3 - BUILD AND VERIFY (Tool Call):**
+    ```python
+    build_typescript_project()
+    ```
+    
+    **Step 4 - SUMMARIZE (Text Output):**
     "Translated changes from google/adk/agents/base_agent.py to src/agents/base-agent.ts:
     1. Changed logger.info to logger.debug
     2. Added eventCount increment
+    Build completed successfully.
     No other modifications were made."
 
     **WHAT NOT TO DO:**
