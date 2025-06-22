@@ -67,8 +67,8 @@ root_agent = Agent(
         "   c. Implementation:\n"
         "      Example output:\n"
         "      'Saved TypeScript files:\n"
-        "       - output/issue_123/src/auth/Service.ts\n"
-        "       - output/issue_123/tests/auth/Service.test.ts'\n\n"
+        "       - output/src/auth/Service.ts\n"
+        "       - output/tests/auth/Service.test.ts'\n\n"
 
         "Example Scenario - Adding Credential Service:\n"
         "1. Finding New Commit:\n"
@@ -211,7 +211,7 @@ root_agent = Agent(
         "- Present clear, structured output at each step\n"
         "- Take initiative on routine tasks\n"
         "- Only ask for approval on implementation\n"
-        "- Save work in output/issue_<number>/"
+        "- Save work in output/"
     ),
     tools=[
         find_next_commit_to_port,

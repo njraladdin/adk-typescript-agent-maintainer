@@ -4,16 +4,13 @@ import json
 from pathlib import Path
 
 def write_local_file(
-    issue_number: int,
     file_path: str,
     content: str
 ) -> Dict[str, Any]:
     """
     Writes a file to a local output directory for review before committing to the repository.
-    Files are organized by issue number to keep track of changes.
     
     Args:
-        issue_number (int): The GitHub issue number these changes are associated with
         file_path (str): The target path in the repository (will be preserved in output structure)
         content (str): The content to write to the file
     
@@ -28,13 +25,9 @@ def write_local_file(
         base_dir = Path("output")
         base_dir.mkdir(exist_ok=True)
         
-        # Create issue-specific directory
-        issue_dir = base_dir / f"issue_{issue_number}"
-        issue_dir.mkdir(exist_ok=True)
-        
         # Preserve the repository path structure
         file_path = file_path.lstrip("/")  # Remove leading slash if present
-        output_path = issue_dir / file_path
+        output_path = base_dir / file_path
         
         # Create parent directories
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +57,6 @@ if __name__ == "__main__":
         """
         
         result = write_local_file(
-            issue_number=123,
             file_path="src/hello.ts",
             content=test_content
         )

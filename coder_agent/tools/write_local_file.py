@@ -8,7 +8,6 @@ from google.adk.tools import ToolContext
 from ..constants import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
 
 def write_local_file(
-    issue_number: int,
     file_path: str,
     content: str,
     tool_context: ToolContext = None
@@ -21,7 +20,6 @@ def write_local_file(
     "src/agents/base-agent.ts", "src/tools/example-tool.ts").
     
     Args:
-        issue_number (int): The GitHub issue number these changes are associated with
         file_path (str): The exact file path as it appears in the TypeScript repository 
                         (e.g., "src/agents/base-agent.ts", "package.json")
         content (str): The complete file content to write
@@ -34,7 +32,7 @@ def write_local_file(
             - message: str (Success/error message)
     """
     # Log the start of the tool execution with main parameters
-    print(f"[WRITE_LOCAL_FILE] issue_number={issue_number} file_path={file_path}")
+    print(f"[WRITE_LOCAL_FILE] file_path={file_path}")
     
     try:
         # Get the TypeScript repository path from the tool context state or use the default path
@@ -92,7 +90,6 @@ if __name__ == "__main__":
         """
         
         result = write_local_file(
-            issue_number=123,
             file_path="src/hello.ts",
             content=test_content
         )
