@@ -6,10 +6,8 @@ from pathlib import Path
 from google.adk.agents.callback_context import CallbackContext
 from typing import Optional, Any
 
-# Define the output directory at a single, clear location
-ARTIFACTS_DIR = "debug_output"  
-AGENT_WORKSPACE_DIR = "agent_workspace"
-TYPESCRIPT_REPO_DIR = "adk-typescript"
+# Import constants from the centralized constants module
+from .constants import ARTIFACTS_DIR, AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR, TYPESCRIPT_REPO_URL
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
@@ -140,7 +138,7 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     
     # Set up the TypeScript repository in a subdirectory
     typescript_repo_path = workspace_path / TYPESCRIPT_REPO_DIR
-    repo_url = "https://github.com/njraladdin/adk-typescript.git"
+    repo_url = TYPESCRIPT_REPO_URL
     
     # Check if repository already exists
     if typescript_repo_path.exists() and (typescript_repo_path / ".git").exists():

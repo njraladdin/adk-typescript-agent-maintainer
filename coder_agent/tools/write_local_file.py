@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from google.adk.tools import ToolContext
 
-# Import the workspace directory constants from callbacks
-from ..callbacks import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
+# Import the workspace directory constants from constants module
+from ..constants import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
 
 def write_local_file(
     issue_number: int,
