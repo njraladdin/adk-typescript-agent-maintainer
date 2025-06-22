@@ -11,7 +11,6 @@ def write_local_file(
     issue_number: int,
     file_path: str,
     content: str,
-    metadata: Optional[Dict[str, Any]] = None,
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
@@ -26,13 +25,6 @@ def write_local_file(
         file_path (str): The exact file path as it appears in the TypeScript repository 
                         (e.g., "src/agents/base-agent.ts", "package.json")
         content (str): The complete file content to write
-        metadata (Optional[Dict[str, Any]]): Optional metadata about the file/changes to save
-            Example metadata:
-            {
-                "original_file": "path/to/python/file.py",
-                "commit_sha": "abc123",
-                "description": "Ported from Python version X.Y.Z"
-            }
         tool_context (ToolContext): Automatically injected by ADK for state access
     
     Returns:
@@ -58,15 +50,6 @@ def write_local_file(
         if not typescript_repo_path.exists():
             raise FileNotFoundError(f"TypeScript repository directory {typescript_repo_path} does not exist. Please run setup_agent_workspace first.")
         
-        # Create base output directory for metadata if it doesn't exist
-        # We'll still save metadata to output/issue_X for tracking purposes
-        base_dir = Path("output")
-        base_dir.mkdir(exist_ok=True)
-        
-        # Create issue-specific directory for metadata
-        issue_dir = base_dir / f"issue_{issue_number}"
-        issue_dir.mkdir(exist_ok=True)
-        
         # Prepare the file path in the TypeScript repository
         file_path = file_path.lstrip("/")  # Remove leading slash if present
         output_path = typescript_repo_path / file_path
@@ -76,15 +59,6 @@ def write_local_file(
         
         # Write the file content to the TypeScript repository
         output_path.write_text(content, encoding='utf-8')
-        
-        # If metadata provided, save it to the output directory
-        if metadata:
-            # Create the same directory structure in the output directory for metadata
-            meta_dir = issue_dir / os.path.dirname(file_path)
-            meta_dir.mkdir(parents=True, exist_ok=True)
-            
-            meta_path = meta_dir / f"{os.path.basename(file_path)}.meta.json"
-            meta_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         
         success_result = {
             "status": "success",
@@ -117,17 +91,10 @@ if __name__ == "__main__":
         }
         """
         
-        test_metadata = {
-            "original_file": "python/hello.py",
-            "commit_sha": "abc123def456",
-            "description": "Ported from Python hello() function"
-        }
-        
         result = write_local_file(
             issue_number=123,
             file_path="src/hello.ts",
-            content=test_content,
-            metadata=test_metadata
+            content=test_content
         )
         
         if result["status"] == "success":

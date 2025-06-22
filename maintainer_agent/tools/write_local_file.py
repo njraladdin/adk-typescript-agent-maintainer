@@ -6,8 +6,7 @@ from pathlib import Path
 def write_local_file(
     issue_number: int,
     file_path: str,
-    content: str,
-    metadata: Optional[Dict[str, Any]] = None
+    content: str
 ) -> Dict[str, Any]:
     """
     Writes a file to a local output directory for review before committing to the repository.
@@ -17,13 +16,6 @@ def write_local_file(
         issue_number (int): The GitHub issue number these changes are associated with
         file_path (str): The target path in the repository (will be preserved in output structure)
         content (str): The content to write to the file
-        metadata (Optional[Dict[str, Any]]): Optional metadata about the file/changes to save
-            Example metadata:
-            {
-                "original_file": "path/to/python/file.py",
-                "commit_sha": "abc123",
-                "description": "Ported from Python version X.Y.Z"
-            }
     
     Returns:
         Dict[str, Any]: Response containing:
@@ -50,11 +42,6 @@ def write_local_file(
         # Write the file content
         output_path.write_text(content, encoding='utf-8')
         
-        # If metadata provided, save it alongside the file
-        if metadata:
-            meta_path = output_path.parent / f"{output_path.name}.meta.json"
-            meta_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
-        
         return {
             "status": "success",
             "output_path": str(output_path),
@@ -76,17 +63,10 @@ if __name__ == "__main__":
         }
         """
         
-        test_metadata = {
-            "original_file": "python/hello.py",
-            "commit_sha": "abc123def456",
-            "description": "Ported from Python hello() function"
-        }
-        
         result = write_local_file(
             issue_number=123,
             file_path="src/hello.ts",
-            content=test_content,
-            metadata=test_metadata
+            content=test_content
         )
         
         if result["status"] == "success":

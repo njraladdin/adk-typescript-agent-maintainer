@@ -211,8 +211,7 @@ root_agent = Agent(
         "- Present clear, structured output at each step\n"
         "- Take initiative on routine tasks\n"
         "- Only ask for approval on implementation\n"
-        "- Save work in output/issue_<number>/\n"
-        "- Include metadata with changes"
+        "- Save work in output/issue_<number>/"
     ),
     tools=[
         find_next_commit_to_port,
