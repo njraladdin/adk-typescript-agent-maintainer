@@ -259,21 +259,8 @@ def is_typescript_repo_ready(workspace_path: Optional[Path] = None) -> bool:
     Returns:
         bool: True if the repository exists and appears to be properly set up
     """
-    typescript_repo_path = get_typescript_repo_path(workspace_path)
-    
-    # Check if the directory exists and has .git folder
-    if not typescript_repo_path.exists() or not (typescript_repo_path / ".git").exists():
-        return False
-    
-    # Check if package.json exists (indicates it's a Node.js project)
-    if not (typescript_repo_path / "package.json").exists():
-        return False
-    
-    # Check if node_modules exists (indicates dependencies are installed)
-    if not (typescript_repo_path / "node_modules").exists():
-        return False
-    
-    return True
+    setup_status = check_workspace_setup_status(workspace_path)
+    return setup_status["all_steps_completed"]
 
 
 def run_tests(project_path: Path, test_paths: List[str]) -> Dict[str, Any]:
@@ -404,6 +391,57 @@ def setup_typescript_repository_environment(project_path: Path) -> Tuple[bool, s
         error_msg = f"Failed to setup TypeScript repository environment: {e}"
         print(error_msg)
         return False, error_msg
+
+
+def check_workspace_setup_status(workspace_path: Optional[Path] = None) -> Dict[str, bool]:
+    """
+    Check the status of each step in the workspace setup process.
+    
+    This function checks if each of the following steps has been completed:
+    1. Workspace directory exists
+    2. Repository has been cloned
+    3. Dependencies have been installed (node_modules exists)
+    4. Project has been built (dist folder exists)
+    5. Environment has been set up (.env file exists)
+    
+    Args:
+        workspace_path: Optional custom workspace path. If None, uses default.
+        
+    Returns:
+        Dict[str, bool]: Dictionary with the status of each step
+    """
+    if workspace_path is None:
+        workspace_path = Path(AGENT_WORKSPACE_DIR)
+    
+    typescript_repo_path = get_typescript_repo_path(workspace_path)
+    
+    # Check each step in the setup process
+    workspace_exists = workspace_path.exists()
+    
+    repo_cloned = False
+    if workspace_exists:
+        repo_cloned = typescript_repo_path.exists() and (typescript_repo_path / ".git").exists() and (typescript_repo_path / "package.json").exists()
+    
+    dependencies_installed = False
+    if repo_cloned:
+        dependencies_installed = (typescript_repo_path / "node_modules").exists()
+    
+    project_built = False
+    if repo_cloned:
+        project_built = (typescript_repo_path / "dist").exists()
+    
+    env_setup = False
+    if repo_cloned:
+        env_setup = (typescript_repo_path / ".env").exists()
+    
+    return {
+        "workspace_exists": workspace_exists,
+        "repo_cloned": repo_cloned,
+        "dependencies_installed": dependencies_installed,
+        "project_built": project_built,
+        "env_setup": env_setup,
+        "all_steps_completed": workspace_exists and repo_cloned and dependencies_installed and project_built and env_setup
+    }
 
 
 def _parse_test_output(stdout: str) -> Dict[str, Any]:

@@ -13,7 +13,8 @@ from .workspace_utils import (
     clone_repo, 
     install_dependencies, 
     build_project,
-    setup_typescript_repository_environment
+    setup_typescript_repository_environment,
+    check_workspace_setup_status
 )
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
@@ -136,57 +137,76 @@ def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
 def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     """
     A before-agent callback that sets up the agent workspace with the TypeScript repository.
-    If any step in the setup process fails (clone, install dependencies, build, or environment setup),
-    it will print an error message and return.
+    This function checks what steps have already been completed and only performs the necessary steps.
+    If any step in the setup process fails, it will print an error message and return.
     """
     print("CALLBACK: Setting up TypeScript repository workspace...")
     
-    # Setup workspace using core workspace utility functions
+    # Create workspace directory if it doesn't exist
     workspace_path = create_workspace_directory()
     typescript_repo_path = workspace_path / TYPESCRIPT_REPO_DIR
     
-    # Step 1: Clone the repository
-    clone_success, clone_message = clone_repo(TYPESCRIPT_REPO_URL, typescript_repo_path)
-    if not clone_success:
-        print(f"CALLBACK ERROR: Repository setup failed: {clone_message}")
-        return None
+    # Check the status of each setup step
+    setup_status = check_workspace_setup_status(workspace_path)
     
-    print(f"CALLBACK: ✓ {clone_message}")
+    # Step 1: Clone the repository if not already cloned
+    if not setup_status["repo_cloned"]:
+        print("CALLBACK: Repository not cloned. Cloning now...")
+        clone_success, clone_message = clone_repo(TYPESCRIPT_REPO_URL, typescript_repo_path)
+        if not clone_success:
+            print(f"CALLBACK ERROR: Repository setup failed: {clone_message}")
+            return None
+        print(f"CALLBACK: ✓ {clone_message}")
+    else:
+        print("CALLBACK: ✓ Repository already cloned")
     
-    # Step 2: Install dependencies
-    install_success, install_message = install_dependencies(typescript_repo_path)
-    if not install_success:
-        print(f"CALLBACK ERROR: Dependency installation failed: {install_message}")
-        # Store partial path even if failed
-        callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
-        return None
+    # Step 2: Install dependencies if not already installed
+    if not setup_status["dependencies_installed"]:
+        print("CALLBACK: Dependencies not installed. Installing now...")
+        install_success, install_message = install_dependencies(typescript_repo_path)
+        if not install_success:
+            print(f"CALLBACK ERROR: Dependency installation failed: {install_message}")
+            # Store partial path even if failed
+            callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+            return None
+        print(f"CALLBACK: ✓ {install_message}")
+    else:
+        print("CALLBACK: ✓ Dependencies already installed")
     
-    print(f"CALLBACK: ✓ {install_message}")
+    # Step 3: Build the project if not already built
+    if not setup_status["project_built"]:
+        print("CALLBACK: Project not built. Building now...")
+        build_result = build_project(typescript_repo_path)
+        if not build_result["success"]:
+            print(f"CALLBACK ERROR: Project build failed: {build_result['message']}")
+            if build_result["stderr"]:
+                print(f"CALLBACK ERROR: Build stderr: {build_result['stderr']}")
+            # Store partial path even if failed
+            callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+            return None
+        print(f"CALLBACK: ✓ {build_result['message']}")
+        if build_result["stdout"]:
+            print(f"CALLBACK: Build output:\n{build_result['stdout']}")
+    else:
+        print("CALLBACK: ✓ Project already built")
     
-    # Step 3: Build the project
-    build_result = build_project(typescript_repo_path)
-    if not build_result["success"]:
-        print(f"CALLBACK ERROR: Project build failed: {build_result['message']}")
-        if build_result["stderr"]:
-            print(f"CALLBACK ERROR: Build stderr: {build_result['stderr']}")
-        # Store partial path even if failed
-        callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
-        return None
+    # Step 4: Setup repository environment if not already set up
+    if not setup_status["env_setup"]:
+        print("CALLBACK: Environment not set up. Setting up now...")
+        env_success, env_message = setup_typescript_repository_environment(typescript_repo_path)
+        if not env_success:
+            print(f"CALLBACK ERROR: Environment setup failed: {env_message}")
+            # Store partial path even if failed
+            callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+            return None
+        print(f"CALLBACK: ✓ {env_message}")
+    else:
+        print("CALLBACK: ✓ Environment already set up")
     
-    print(f"CALLBACK: ✓ {build_result['message']}")
-    if build_result["stdout"]:
-        print(f"CALLBACK: Build output:\n{build_result['stdout']}")
-    
-    # Step 4: Setup repository environment
-    env_success, env_message = setup_typescript_repository_environment(typescript_repo_path)
-    if not env_success:
-        print(f"CALLBACK ERROR: Environment setup failed: {env_message}")
-        # Store partial path even if failed
-        callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
-        return None
-    
-    print(f"CALLBACK: ✓ {env_message}")
-    print("CALLBACK: TypeScript repository setup completed successfully")
+    if setup_status["all_steps_completed"]:
+        print("CALLBACK: All setup steps were already completed")
+    else:
+        print("CALLBACK: TypeScript repository setup completed successfully")
     
     # Store the repository path in the session state
     callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())

@@ -22,9 +22,10 @@
 progress: 
 - coder context gatherer agent is working.
 - coder writes code based on context 
+- agent workspace: clone repo and setup project in agent workspace (not by agent, before agent callback)
 
-agent workspace: clone repo and setup project in agent workspace (not by agent, before agent callback), 
 validate: update files there, build project and run tests 
+use vertex: use vertex gemini api with credits instead of free gemini one 
 
 code writer: write code, validate by building and running tests, correct if necessary 
 
