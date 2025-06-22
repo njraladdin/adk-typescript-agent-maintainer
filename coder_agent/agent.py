@@ -15,6 +15,7 @@ from .tools.get_repo_file_structure import get_repo_file_structure
 from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
 from .tools.build_typescript_project import build_typescript_project
+from .tools.run_typescript_tests import run_typescript_tests
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
@@ -155,7 +156,7 @@ context_gatherer_agent = Agent(
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
-    tools=[write_local_file, build_typescript_project],
+    tools=[write_local_file, build_typescript_project, run_typescript_tests],
     before_agent_callback=load_gathered_context,
     
     instruction="""
@@ -215,9 +216,17 @@ code_translator_agent = Agent(
        - If the build fails, analyze the errors and fix any TypeScript-specific issues
        - Repeat the write/build cycle until the project builds successfully
 
-    4. **SUMMARIZE:** Provide a concise summary:
+    4. **TEST RELEVANT FUNCTIONALITY:**
+       - Look at the TypeScript repository structure to identify available integration tests
+       - Select 1-3 relevant integration tests that are most likely to be affected by your changes
+       - Call run_typescript_tests with the selected test paths (e.g., ["src/tests/agents/agent.test.ts", "src/tests/models/llm.test.ts"])
+       - If tests fail, analyze the failures and go back to step 2 to fix the issues
+       - Repeat the write/build/test cycle until all tests pass
+
+    5. **SUMMARIZE:** Provide a concise summary:
        - List ONLY the files you translated (should match "Changed files" exactly)
        - Describe ONLY the specific changes made 
+       - Report on test results
        - Confirm that no other changes were made
 
     ---
@@ -247,7 +256,7 @@ code_translator_agent = Agent(
     **Step 2 - TRANSLATE AND WRITE (Tool Call):**
     ```python
     write_local_file(
-        file_path="[TypeScript equivalent file path]",
+        file_path="src/agents/base-agent.ts",
         content='''[Here should be TypeScript code with ONLY the changes from the diff applied, 
 while maintaining all other existing code unchanged]'''
     )
@@ -258,11 +267,19 @@ while maintaining all other existing code unchanged]'''
     build_typescript_project()
     ```
     
-    **Step 4 - SUMMARIZE (Text Output):**
+    **Step 4 - TEST RELEVANT FUNCTIONALITY (Tool Call):**
+    ```python
+    run_typescript_tests(
+        test_paths=["src/tests/agents/base-agent.test.ts", "src/tests/agents/agent-integration.test.ts"]
+    )
+    ```
+    
+    **Step 5 - SUMMARIZE (Text Output):**
     "Translated changes from google/adk/agents/base_agent.py to src/agents/base-agent.ts:
     1. Changed logger.info to logger.debug
     2. Added eventCount increment
     Build completed successfully.
+    Tests passed: 2/2 integration tests passed.
     No other modifications were made."
 
     **WHAT NOT TO DO:**
@@ -271,12 +288,15 @@ while maintaining all other existing code unchanged]'''
      Don't modify files not listed in "Changed files"
      Don't make changes not shown in the diff
      Don't "optimize" or "enhance" the existing code
+     Don't run unit tests - focus only on integration tests
 
     **WHAT TO DO:**  
      Only translate the exact changes shown in the commit diff
      Preserve all existing code that isn't changed in the diff
      Apply precise TypeScript equivalents of Python changes
+     Run relevant integration tests to verify your changes work correctly
      If a Python file is new (no TypeScript equivalent exists), create a new file in the equivalent location
+     If tests fail, iterate on your changes until they pass
 
     Remember: Your goal is to produce a TypeScript equivalent of the exact commit, 
     not to improve or enhance the codebase beyond what was changed in the Python commit.
