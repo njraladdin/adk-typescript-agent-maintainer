@@ -79,9 +79,36 @@ def run_typescript_tests(
         status = "success" if test_result["success"] else "error"
         print(f"[RUN_TYPESCRIPT_TESTS] : output status={status}, exit_code={test_result['exit_code']}")
         
-        if status == "error":
+        # Log test results summary
+        test_results = test_result["test_results"]
+        print(f"[RUN_TYPESCRIPT_TESTS] : test summary: {test_results.get('passed_tests', 0)} passed, {test_results.get('failed_tests', 0)} failed, {test_results.get('skipped_tests', 0)} skipped, {test_results.get('total_tests', 0)} total")
+        
+        # Log test files that were run
+        if test_results.get('test_files'):
+            print(f"[RUN_TYPESCRIPT_TESTS] : test files run: {', '.join(test_results.get('test_files', []))}")
+        
+        if status == "success":
+            print(f"[RUN_TYPESCRIPT_TESTS] : success message={test_result['message']}")
+            # Print a sample of the stdout to show test results
+            if test_result['stdout']:
+                stdout_preview = '\n'.join(test_result['stdout'].splitlines()[:20])  # First 20 lines
+                print(f"[RUN_TYPESCRIPT_TESTS] : stdout preview=\n{stdout_preview}")
+                if len(test_result['stdout'].splitlines()) > 20:
+                    print(f"[RUN_TYPESCRIPT_TESTS] : stdout truncated... (showing first 20 lines of {len(test_result['stdout'].splitlines())} total)")
+        else:
             print(f"[RUN_TYPESCRIPT_TESTS] : error message={test_result['message']}")
             print(f"[RUN_TYPESCRIPT_TESTS] : stderr=\n{test_result['stderr']}")
+            
+            # For errors, also print the stdout which often contains test failure details
+            if test_result['stdout']:
+                stdout_preview = '\n'.join(test_result['stdout'].splitlines()[:30])  # First 30 lines for errors
+                print(f"[RUN_TYPESCRIPT_TESTS] : stdout preview=\n{stdout_preview}")
+                if len(test_result['stdout'].splitlines()) > 30:
+                    print(f"[RUN_TYPESCRIPT_TESTS] : stdout truncated... (showing first 30 lines of {len(test_result['stdout'].splitlines())} total)")
+            
+            # Print any error messages extracted from test results
+            if test_results.get('errors'):
+                print(f"[RUN_TYPESCRIPT_TESTS] : test errors=\n" + '\n'.join(test_results.get('errors', [])))
         
         return result
         
@@ -135,14 +162,37 @@ if __name__ == "__main__":
         print(f"Message: {result['message']}")
         print(f"Exit Code: {result['exit_code']}")
         print(f"Repository Path: {result['repo_path']}")
-        print(f"Test Results: {result['test_results']}")
+        
+        # Print test results summary
+        test_results = result['test_results']
+        print("\n=== Test Results Summary ===")
+        print(f"Total Tests: {test_results.get('total_tests', 0)}")
+        print(f"Passed: {test_results.get('passed_tests', 0)}")
+        print(f"Failed: {test_results.get('failed_tests', 0)}")
+        print(f"Skipped: {test_results.get('skipped_tests', 0)}")
+        
+        # Print test files
+        if test_results.get('test_files'):
+            print("\n=== Test Files Run ===")
+            for test_file in test_results.get('test_files', []):
+                print(f"- {test_file}")
         
         if result['status'] == "success":
-            print("✅ Tests completed successfully!")
+            print("\n✅ Tests completed successfully!")
         else:
-            print("❌ Tests failed!")
-            print(f"Test Output:\n{result['stdout']}")
-            print(f"Test Errors:\n{result['stderr']}")
+            print("\n❌ Tests failed!")
+            
+            # Print any error messages
+            if test_results.get('errors'):
+                print("\n=== Test Errors ===")
+                for error in test_results.get('errors', []):
+                    print(f"- {error}")
+            
+            print("\n=== Test Output ===")
+            print(result['stdout'][:500] + "..." if len(result['stdout']) > 500 else result['stdout'])
+            
+            print("\n=== Error Output ===")
+            print(result['stderr'][:500] + "..." if len(result['stderr']) > 500 else result['stderr'])
             
     except Exception as error:
         print(f"Test failed: {error}") 
