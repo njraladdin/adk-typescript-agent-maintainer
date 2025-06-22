@@ -12,7 +12,8 @@ from .workspace_utils import (
     create_workspace_directory, 
     clone_repo, 
     install_dependencies, 
-    build_project
+    build_project,
+    setup_typescript_repository_environment
 )
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
@@ -135,7 +136,7 @@ def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
 def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     """
     A before-agent callback that sets up the agent workspace with the TypeScript repository.
-    If any step in the setup process fails (clone, install dependencies, or build),
+    If any step in the setup process fails (clone, install dependencies, build, or environment setup),
     it will print an error message and return.
     """
     print("CALLBACK: Setting up TypeScript repository workspace...")
@@ -175,6 +176,16 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     print(f"CALLBACK: ✓ {build_result['message']}")
     if build_result["stdout"]:
         print(f"CALLBACK: Build output:\n{build_result['stdout']}")
+    
+    # Step 4: Setup repository environment
+    env_success, env_message = setup_typescript_repository_environment(typescript_repo_path)
+    if not env_success:
+        print(f"CALLBACK ERROR: Environment setup failed: {env_message}")
+        # Store partial path even if failed
+        callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+        return None
+    
+    print(f"CALLBACK: ✓ {env_message}")
     print("CALLBACK: TypeScript repository setup completed successfully")
     
     # Store the repository path in the session state
