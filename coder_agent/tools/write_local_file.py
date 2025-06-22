@@ -3,6 +3,9 @@ import os
 import json
 from pathlib import Path
 
+# Import the workspace directory constants from callbacks
+from ..callbacks import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
+
 def write_local_file(
     issue_number: int,
     file_path: str,
@@ -10,12 +13,11 @@ def write_local_file(
     metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Writes a file to a local output directory for review before committing to the repository.
-    Files are organized by issue number to keep track of changes.
+    Writes a file to the agent workspace directory, which contains the cloned TypeScript repository.
     
     Args:
         issue_number (int): The GitHub issue number these changes are associated with
-        file_path (str): The target path in the repository (will be preserved in output structure)
+        file_path (str): The target path in the repository (will be preserved in workspace structure)
         content (str): The content to write to the file
         metadata (Optional[Dict[str, Any]]): Optional metadata about the file/changes to save
             Example metadata:
@@ -35,27 +37,50 @@ def write_local_file(
     print(f"[WRITE_LOCAL_FILE] issue_number={issue_number} file_path={file_path}")
     
     try:
-        # Create base output directory if it doesn't exist
+        # Check if we have the TypeScript repository path in the session state
+        # This is imported from the session_state module which should be updated by the callback
+        from google.adk.agents.session_state import get_session_state
+        session_state = get_session_state()
+        
+        # Get the TypeScript repository path from the session state or use the default path
+        if 'typescript_repo_path' in session_state:
+            typescript_repo_path = Path(session_state['typescript_repo_path'])
+            print(f"[WRITE_LOCAL_FILE] Using TypeScript repository path from session state: {typescript_repo_path}")
+        else:
+            # Use the default path
+            typescript_repo_path = Path(AGENT_WORKSPACE_DIR) / TYPESCRIPT_REPO_DIR
+            print(f"[WRITE_LOCAL_FILE] Using default TypeScript repository path: {typescript_repo_path}")
+        
+        # Ensure the TypeScript repository directory exists
+        if not typescript_repo_path.exists():
+            raise FileNotFoundError(f"TypeScript repository directory {typescript_repo_path} does not exist. Please run setup_agent_workspace first.")
+        
+        # Create base output directory for metadata if it doesn't exist
+        # We'll still save metadata to output/issue_X for tracking purposes
         base_dir = Path("output")
         base_dir.mkdir(exist_ok=True)
         
-        # Create issue-specific directory
+        # Create issue-specific directory for metadata
         issue_dir = base_dir / f"issue_{issue_number}"
         issue_dir.mkdir(exist_ok=True)
         
-        # Preserve the repository path structure
+        # Prepare the file path in the TypeScript repository
         file_path = file_path.lstrip("/")  # Remove leading slash if present
-        output_path = issue_dir / file_path
+        output_path = typescript_repo_path / file_path
         
         # Create parent directories
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Write the file content
+        # Write the file content to the TypeScript repository
         output_path.write_text(content, encoding='utf-8')
         
-        # If metadata provided, save it alongside the file
+        # If metadata provided, save it to the output directory
         if metadata:
-            meta_path = output_path.parent / f"{output_path.name}.meta.json"
+            # Create the same directory structure in the output directory for metadata
+            meta_dir = issue_dir / os.path.dirname(file_path)
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            
+            meta_path = meta_dir / f"{os.path.basename(file_path)}.meta.json"
             meta_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         
         success_result = {

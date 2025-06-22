@@ -1,11 +1,15 @@
 import json
 import os
 import glob
+import subprocess
+from pathlib import Path
 from google.adk.agents.callback_context import CallbackContext
 from typing import Optional, Any
 
 # Define the output directory at a single, clear location
 ARTIFACTS_DIR = "debug_output"  
+AGENT_WORKSPACE_DIR = "agent_workspace"
+TYPESCRIPT_REPO_DIR = "adk-typescript"
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
@@ -122,5 +126,99 @@ def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
             print(f"CALLBACK: Error loading context from file: {e}")
     
     # This callback doesn't need to alter the agent's flow, so it returns None.
+    return None
+
+def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
+    """
+    A before-agent callback that sets up the agent workspace with the TypeScript repository.
+    If any step in the setup process fails (clone, install dependencies, or build),
+    it will print an error message and return.
+    """
+    # Create base workspace directory
+    workspace_path = Path(AGENT_WORKSPACE_DIR)
+    workspace_path.mkdir(exist_ok=True, parents=True)
+    
+    # Set up the TypeScript repository in a subdirectory
+    typescript_repo_path = workspace_path / TYPESCRIPT_REPO_DIR
+    repo_url = "https://github.com/njraladdin/adk-typescript.git"
+    
+    # Check if repository already exists
+    if typescript_repo_path.exists() and (typescript_repo_path / ".git").exists():
+        print(f"CALLBACK: TypeScript repository already exists at {typescript_repo_path}.")
+        
+        # Store the repository path in the session state
+        callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+        return None
+    
+    print(f"CALLBACK: Setting up TypeScript repository at {typescript_repo_path}...")
+    
+    # Determine npm command based on platform
+    import platform
+    is_windows = platform.system().lower() == 'windows'
+    npm_cmd = "npm.cmd" if is_windows else "npm"
+    
+    # Step 1: Clone the repository
+    try:
+        print(f"CALLBACK: Cloning repository {repo_url}...")
+        subprocess.run(
+            ["git", "clone", repo_url, str(typescript_repo_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=is_windows
+        )
+        
+        # Get the absolute path of the TypeScript repository
+        typescript_repo_abs_path = typescript_repo_path.absolute()
+        print(f"CALLBACK: Repository cloned to {typescript_repo_abs_path}")
+    except Exception as e:
+        print(f"CALLBACK ERROR: Failed to clone repository: {e}")
+        return None
+    
+    # Store the repository path in the session state
+    callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())
+    
+    # Step 2: Install dependencies
+    try:
+        print(f"CALLBACK: Installing dependencies using {npm_cmd}...")
+        subprocess.run(
+            [npm_cmd, "install", "--ignore-scripts"],
+            cwd=str(typescript_repo_abs_path),
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=is_windows
+        )
+        print("CALLBACK: Dependencies installed successfully")
+    except Exception as e:
+        print(f"CALLBACK ERROR: Failed to install dependencies: {e}")
+        return None
+    
+    # Step 3: Build the project
+    try:
+        print("CALLBACK: Building TypeScript project...")
+        result = subprocess.run(
+            [npm_cmd, "run", "build"],
+            cwd=str(typescript_repo_abs_path),
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=is_windows
+        )
+        print("CALLBACK: TypeScript project built successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"CALLBACK ERROR: Failed to build project (exit code {e.returncode})")
+        if e.stdout:
+            print("CALLBACK: Build stdout:")
+            print(e.stdout)
+        if e.stderr:
+            print("CALLBACK: Build stderr:")
+            print(e.stderr)
+        return None
+    except Exception as e:
+        print(f"CALLBACK ERROR: Failed to build project: {e}")
+        return None
+    
+    print("CALLBACK: TypeScript repository setup completed successfully")
     return None
 

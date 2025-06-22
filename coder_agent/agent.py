@@ -16,7 +16,7 @@ from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
 
 # --- Callback Imports ---
-from .callbacks import save_gathered_context, load_gathered_context
+from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
 
 # ==============================================================================
 # 1. DEFINE THE STRUCTURED DATA MODELS
@@ -294,6 +294,9 @@ root_agent = Agent(
         context_gatherer_tool,
         code_translator_tool,
     ],
+    
+    # Add the setup_agent_workspace callback
+    before_agent_callback=setup_agent_workspace,
     
     instruction="""
     You are an expert coordinator for a code porting workflow. You have two main sub-agents available as tools:

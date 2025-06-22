@@ -55,3 +55,5 @@ coverage.xml
 
 output/
 debug_output/
+
+agent_workspace/

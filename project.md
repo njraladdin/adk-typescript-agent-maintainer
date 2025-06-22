@@ -17,11 +17,15 @@
 - filter unprocessed commits (and only keep the oldest one)
 - send to agent 
 
+
+
 progress: 
--coder context gatherer agent is working.
+- coder context gatherer agent is working.
+- coder writes code based on context 
 
-code writer: (prework for cloning repo in agent workspace) write code, validate by building and running tests, correct if necessary 
+agent workspace: clone repo and setup project in agent workspace (not by agent, before agent callback), 
+validate: update files there, build project and run tests 
 
-estimated finish : saturday 
+code writer: write code, validate by building and running tests, correct if necessary 
 
-https://aistudio.google.com/app/prompts/13fFbKwI35U4bmiGjm9t-OMqVDXL0wIin
+estimated finish : sunday 
