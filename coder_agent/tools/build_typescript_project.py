@@ -71,8 +71,11 @@ def build_typescript_project(
         status = "success" if build_result["success"] else "error"
         print(f"[BUILD_TYPESCRIPT_PROJECT] : output status={status}, exit_code={build_result['exit_code']}")
         
-        if build_result["stderr"]:
-            print(f"[BUILD_TYPESCRIPT_PROJECT] : stderr={build_result['stderr']}")
+        # For errors, print the complete message and outputs
+        if status == "error":
+            print(f"[BUILD_TYPESCRIPT_PROJECT] : error message={build_result['message']}")
+            print(f"[BUILD_TYPESCRIPT_PROJECT] : stdout=\n{build_result['stdout']}")
+            print(f"[BUILD_TYPESCRIPT_PROJECT] : stderr=\n{build_result['stderr']}")
         
         return result
         
@@ -110,8 +113,9 @@ if __name__ == "__main__":
                 print(f"Build Output:\n{result['stdout']}")
         else:
             print("❌ Build failed!")
-            if result['stderr']:
-                print(f"Build Errors:\n{result['stderr']}")
+            print(f"Error Message: {result['message']}")
+            print(f"Build Output:\n{result['stdout']}")
+            print(f"Build Errors:\n{result['stderr']}")
             
     except Exception as error:
         print(f"Test failed: {error}") 
