@@ -197,6 +197,30 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     # Step 3: Build the project
     try:
         print("CALLBACK: Building TypeScript project...")
+        print(f"CALLBACK: Working directory: {typescript_repo_abs_path}")
+        print(f"CALLBACK: Using npm command: {npm_cmd}")
+        
+        # Add some environment debugging
+        node_version_result = subprocess.run(
+            ["node", "--version"],
+            cwd=str(typescript_repo_abs_path),
+            capture_output=True,
+            text=True,
+            shell=is_windows
+        )
+        if node_version_result.returncode == 0:
+            print(f"CALLBACK: Node.js version: {node_version_result.stdout.strip()}")
+        
+        npm_version_result = subprocess.run(
+            [npm_cmd, "--version"],
+            cwd=str(typescript_repo_abs_path),
+            capture_output=True,
+            text=True,
+            shell=is_windows
+        )
+        if npm_version_result.returncode == 0:
+            print(f"CALLBACK: npm version: {npm_version_result.stdout.strip()}")
+        
         result = subprocess.run(
             [npm_cmd, "run", "build"],
             cwd=str(typescript_repo_abs_path),
@@ -206,6 +230,9 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
             shell=is_windows
         )
         print("CALLBACK: TypeScript project built successfully")
+        if result.stdout:
+            print("CALLBACK: Build output:")
+            print(result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"CALLBACK ERROR: Failed to build project (exit code {e.returncode})")
         if e.stdout:

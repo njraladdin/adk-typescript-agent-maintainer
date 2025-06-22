@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 import os
 import json
 from pathlib import Path
+from google.adk.tools import ToolContext
 
 # Import the workspace directory constants from callbacks
 from ..callbacks import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
@@ -10,15 +11,21 @@ def write_local_file(
     issue_number: int,
     file_path: str,
     content: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Writes a file to the agent workspace directory, which contains the cloned TypeScript repository.
+    Writes a file directly to the local TypeScript repository directory structure.
+    
+    This tool writes files to a locally cloned TypeScript repository. Use the exact same 
+    file paths as they appear in the TypeScript repository file structure (e.g., 
+    "src/agents/base-agent.ts", "src/tools/example-tool.ts").
     
     Args:
         issue_number (int): The GitHub issue number these changes are associated with
-        file_path (str): The target path in the repository (will be preserved in workspace structure)
-        content (str): The content to write to the file
+        file_path (str): The exact file path as it appears in the TypeScript repository 
+                        (e.g., "src/agents/base-agent.ts", "package.json")
+        content (str): The complete file content to write
         metadata (Optional[Dict[str, Any]]): Optional metadata about the file/changes to save
             Example metadata:
             {
@@ -26,6 +33,7 @@ def write_local_file(
                 "commit_sha": "abc123",
                 "description": "Ported from Python version X.Y.Z"
             }
+        tool_context (ToolContext): Automatically injected by ADK for state access
     
     Returns:
         Dict[str, Any]: Response containing:
@@ -37,15 +45,10 @@ def write_local_file(
     print(f"[WRITE_LOCAL_FILE] issue_number={issue_number} file_path={file_path}")
     
     try:
-        # Check if we have the TypeScript repository path in the session state
-        # This is imported from the session_state module which should be updated by the callback
-        from google.adk.agents.session_state import get_session_state
-        session_state = get_session_state()
-        
-        # Get the TypeScript repository path from the session state or use the default path
-        if 'typescript_repo_path' in session_state:
-            typescript_repo_path = Path(session_state['typescript_repo_path'])
-            print(f"[WRITE_LOCAL_FILE] Using TypeScript repository path from session state: {typescript_repo_path}")
+        # Get the TypeScript repository path from the tool context state or use the default path
+        if tool_context and 'typescript_repo_path' in tool_context.state:
+            typescript_repo_path = Path(tool_context.state['typescript_repo_path'])
+            print(f"[WRITE_LOCAL_FILE] Using TypeScript repository path from tool context: {typescript_repo_path}")
         else:
             # Use the default path
             typescript_repo_path = Path(AGENT_WORKSPACE_DIR) / TYPESCRIPT_REPO_DIR
