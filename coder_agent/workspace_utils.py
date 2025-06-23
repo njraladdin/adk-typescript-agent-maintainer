@@ -74,7 +74,9 @@ def install_dependencies(project_path: Path, npm_flags: Optional[list] = None) -
             check=True,
             capture_output=True,
             text=True,
-            shell=is_windows
+            shell=is_windows,
+            encoding='utf-8',
+            errors='replace'
         )
         
         return True, "Dependencies installed successfully"
@@ -129,7 +131,9 @@ def build_project(project_path: Path, build_script: str = "build") -> dict:
             cwd=str(project_path),
             capture_output=True,
             text=True,
-            shell=is_windows
+            shell=is_windows,
+            encoding='utf-8',
+            errors='replace'
         )
         if node_version_result.returncode == 0:
             print(f"Node.js version: {node_version_result.stdout.strip()}")
@@ -139,7 +143,9 @@ def build_project(project_path: Path, build_script: str = "build") -> dict:
             cwd=str(project_path),
             capture_output=True,
             text=True,
-            shell=is_windows
+            shell=is_windows,
+            encoding='utf-8',
+            errors='replace'
         )
         if npm_version_result.returncode == 0:
             print(f"npm version: {npm_version_result.stdout.strip()}")
@@ -151,7 +157,9 @@ def build_project(project_path: Path, build_script: str = "build") -> dict:
             check=True,
             capture_output=True,
             text=True,
-            shell=is_windows
+            shell=is_windows,
+            encoding='utf-8',
+            errors='replace'
         )
         
         return {
@@ -210,13 +218,13 @@ def is_typescript_repo_ready(workspace_path: Optional[Path] = None) -> bool:
     return setup_status["all_steps_completed"]
 
 
-def run_tests(project_path: Path, test_paths: List[str]) -> Dict[str, Any]:
+def run_tests(project_path: Path, test_names: List[str]) -> Dict[str, Any]:
     """
     Run tests for a Node.js/TypeScript project using npm test.
     
     Args:
         project_path: Path to the project directory
-        test_paths: List of test file paths to run
+        test_names: List of test file names to run (Jest will auto-discover by filename)
         
     Returns:
         dict: {
@@ -245,10 +253,10 @@ def run_tests(project_path: Path, test_paths: List[str]) -> Dict[str, Any]:
         test_script = "test"  # Hardcoded to "test"
         print(f"Running tests using {npm_cmd} run {test_script}...")
         print(f"Working directory: {project_path}")
-        print(f"Test paths: {test_paths}")
+        print(f"Test names: {test_names}")
         
         # Build the test command
-        cmd = [npm_cmd, "run", test_script] + test_paths
+        cmd = [npm_cmd, "run", test_script] + test_names
         
         # Run the tests
         result = subprocess.run(
@@ -257,7 +265,9 @@ def run_tests(project_path: Path, test_paths: List[str]) -> Dict[str, Any]:
             capture_output=True,
             text=True,
             shell=is_windows,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
+            encoding='utf-8',
+            errors='replace'  # Replace problematic characters instead of failing
         )
         
         success = result.returncode == 0

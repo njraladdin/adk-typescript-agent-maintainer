@@ -9,17 +9,18 @@ from ..constants import AGENT_WORKSPACE_DIR
 
 
 def run_typescript_tests(
-    test_paths: List[str],
+    test_names: List[str],
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Run TypeScript tests using npm.
+    Run TypeScript tests by test file names using npm test.
     
-    This tool runs the specified tests using npm test. The environment setup
-    (creating .env file) should already be done during workspace setup.
+    This tool runs the specified test files using npm test. Jest will automatically
+    find the test files by their names. The environment setup (.env file) should 
+    already be done during workspace setup.
     
     Args:
-        test_paths (List[str]): List of test file paths starting from src/
+        test_names (List[str]): List of test file names (e.g., ["BaseAgent.test.ts", "GoogleLlm.test.ts"])
         tool_context (ToolContext): Automatically injected by ADK for state access
     
     Returns:
@@ -32,7 +33,7 @@ def run_typescript_tests(
             - repo_path: str (Path to the TypeScript repository)
             - test_results: Dict (Parsed test results if available)
     """
-    print(f"[RUN_TYPESCRIPT_TESTS] Running tests for {len(test_paths)} files")
+    print(f"[RUN_TYPESCRIPT_TESTS] Running tests: {', '.join(test_names)}")
     
     try:
         # Get the TypeScript repository path
@@ -57,12 +58,11 @@ def run_typescript_tests(
             print(f"[RUN_TYPESCRIPT_TESTS] : output status=error, message={error_result['message']}")
             return error_result
         
-        # Convert test paths to full paths
-        full_test_paths = _convert_test_paths(test_paths, typescript_repo_path)
-        print(f"[RUN_TYPESCRIPT_TESTS] Full test paths: {full_test_paths}")
+        # Jest will auto-discover tests by filename, so just pass the test names directly
+        print(f"[RUN_TYPESCRIPT_TESTS] Test names for Jest: {test_names}")
         
         # Run the tests using workspace utility
-        test_result = run_tests(typescript_repo_path, full_test_paths)
+        test_result = run_tests(typescript_repo_path, test_names)
         
         # Format the result
         result = {
@@ -127,36 +127,15 @@ def run_typescript_tests(
         return error_result
 
 
-def _convert_test_paths(test_paths: List[str], typescript_repo_path: Path) -> List[str]:
-    """
-    Convert test paths from src/... format to full paths.
-    
-    Args:
-        test_paths: List of test paths starting from src/
-        typescript_repo_path: Path to the TypeScript repository
-        
-    Returns:
-        List[str]: List of full test file paths
-    """
-    full_test_paths = []
-    for test_path in test_paths:
-        # Remove leading 'src/' if present and add full path
-        clean_path = test_path.replace('src/', '', 1) if test_path.startswith('src/') else test_path
-        full_path = typescript_repo_path / 'src' / clean_path
-        full_test_paths.append(str(full_path))
-    
-    return full_test_paths
-
-
 if __name__ == "__main__":
     # Example usage for testing
     try:
         print("Testing run_typescript_tests tool...")
         
-        # Example test paths
-        test_paths = ["src/tests/example.test.ts"]
+        # Example test names
+        test_names = ["example.test.ts"]
         
-        result = run_typescript_tests(test_paths)
+        result = run_typescript_tests(test_names)
         
         print(f"Test Status: {result['status']}")
         print(f"Message: {result['message']}")

@@ -85,7 +85,9 @@ def get_current_branch(repo_path: Path) -> Tuple[bool, str]:
             capture_output=True,
             text=True,
             check=True,
-            shell=is_windows
+            shell=is_windows,
+            encoding='utf-8',
+            errors='replace'
         )
         return True, result.stdout.strip()
     except subprocess.CalledProcessError as e:

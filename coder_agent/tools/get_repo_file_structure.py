@@ -15,6 +15,54 @@ class MockToolContext:
     def state(self):
         return self._state
 
+def format_repo_structure_as_string(tree_items: List[Dict[str, Any]], exclude_patterns: List[str]) -> str:
+    """
+    Format the repository tree structure as a simple string representation.
+    This makes it much easier for LLMs to understand the repository structure.
+    """
+    lines = []
+    
+    # Group items by type and sort them
+    directories = []
+    files = []
+    
+    for item in tree_items:
+        item_path = item["path"]
+        
+        # Skip excluded patterns
+        should_skip = False
+        for pattern in exclude_patterns:
+            if pattern in item_path:
+                should_skip = True
+                break
+        if should_skip:
+            continue
+            
+        if item["type"] == "tree":
+            directories.append(item_path + "/")
+        elif item["type"] == "blob":
+            size_kb = round(item.get("size", 0) / 1024, 1) if item.get("size", 0) > 0 else 0
+            files.append(f"{item_path} ({size_kb}KB)")
+    
+    # Sort directories and files
+    directories.sort()
+    files.sort()
+    
+    # Add directories first
+    if directories:
+        lines.append("DIRECTORIES:")
+        for directory in directories:
+            lines.append(f"  {directory}")
+        lines.append("")
+    
+    # Add files
+    if files:
+        lines.append("FILES:")
+        for file in files:
+            lines.append(f"  {file}")
+    
+    return "\n".join(lines)
+
 def get_repo_file_structure(
     repo: str = 'njraladdin/adk-typescript',
     path: str = "",
@@ -83,7 +131,7 @@ def get_repo_file_structure(
                 "__pycache__/",
                 ".pytest_cache/",
                 ".vscode/",
-                ".idea/"
+                ".idea/", "docs/"
             ]
 
         # Process the tree into our desired structure
@@ -102,7 +150,7 @@ def get_repo_file_structure(
                     should_skip = True
                     break
             if should_skip:
-                print(f"Skipping excluded path: {item_path}")
+                #print(f"Skipping excluded path: {item_path}")
                 continue
 
             # Split path into components
@@ -163,12 +211,15 @@ def get_repo_file_structure(
             if GATHERED_CONTEXT_KEY not in tool_context.state:
                 tool_context.state[GATHERED_CONTEXT_KEY] = {}
             
+            # Create a simple formatted string representation instead of complex nested structure
+            formatted_structure = format_repo_structure_as_string(tree_data["tree"], exclude_patterns)
+            
             # Determine which repo this is and store accordingly
             if "adk-python" in repo or "google" in repo.split('/')[0]:
-                tool_context.state[GATHERED_CONTEXT_KEY]['python_repo_structure'] = result
+                tool_context.state[GATHERED_CONTEXT_KEY]['python_repo_structure'] = formatted_structure
             else:
                 # Default to TypeScript for all other repositories
-                tool_context.state[GATHERED_CONTEXT_KEY]['typescript_repo_structure'] = result
+                tool_context.state[GATHERED_CONTEXT_KEY]['typescript_repo_structure'] = formatted_structure
 
         # Format and print the tree data in a more readable way
         formatted_tree = []
@@ -207,7 +258,7 @@ def get_repo_file_structure(
 def print_repo_file_structure(structure: List[Dict[str, Any]], indent: int = 0) -> None:
     """Helper function to print the repository file structure in a tree-like format."""
     for item in structure:
-        prefix = "  " * indent + "├── "
+        prefix = "  " * indent + "- "
         size_info = f" ({item['size']} bytes)" if item.get('size') else ""
         print(f"{prefix}{item['name']}{size_info}")
         if item["type"] == "dir" and "contents" in item:

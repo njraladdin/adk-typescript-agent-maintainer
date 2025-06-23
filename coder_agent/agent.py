@@ -17,6 +17,7 @@ from .tools.write_local_file import write_local_file
 from .tools.build_typescript_project import build_typescript_project
 from .tools.run_typescript_tests import run_typescript_tests
 from .tools.commit_and_push_changes import commit_and_push_changes
+from .tools.create_pull_request import create_pull_request
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
@@ -98,19 +99,18 @@ context_gatherer_agent = Agent(
        - file_path=<path to the TypeScript file>
        - The tool will automatically store these in 'typescript_context_files'.
 
-    5. Gather additional Python context files:
-       - Analyze each Python file you've collected
-       - Identify any imports of local modules (e.g., `from ..utils import helper`)
-       - For each local import, call `get_file_content` with the Python repo details
-       - The tool will automatically store these in 'python_context_files'
-
-    6. Gather additional TypeScript context files:
+    5. Gather comprehensive TypeScript context files:
        - Analyze each TypeScript file you've collected
-       - Identify any imports of local modules (e.g., `import  Helper  from '../utils'`)
+       - Identify any imports of local modules (e.g., `import Helper from '../utils'`)
        - For each local import, call `get_file_content` with the TypeScript repo details
+       - ALSO gather similar files to understand patterns and conventions:
+         - For test files: Collect 2-3 other test files in the same directory to understand testing patterns
+         - For component files: Collect 1-2 similar component files to understand component patterns
+         - For utility files: Collect 1-2 related utility files to understand utility patterns
+         - For model files: Collect 1-2 related model files to understand model patterns
        - The tool will automatically store these in 'typescript_context_files'
 
-    7. When you have called the tools for all necessary files, provide a brief summary of what you've collected.
+    6. When you have called the tools for all necessary files, provide a brief summary of what you've collected.
 
     ---
     **EXAMPLE SCENARIO**
@@ -129,28 +129,25 @@ context_gatherer_agent = Agent(
     - **YOUR ACTION (Step 3):** Call `get_file_content(repo='google/adk-python', file_path='google/adk/agents/base_agent.py')`.
       - The tool automatically stores this in 'python_context_files'.
 
-    - **YOUR ACTION (Step 4):** You determine the equivalent file is `src/agents/base-agent.ts`. 
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/base-agent.ts')`.
+    - **YOUR ACTION (Step 4):** You determine the equivalent file is `src/agents/BaseAgent.ts`. 
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/BaseAgent.ts')`.
       - The tool automatically stores this in 'typescript_context_files'.
 
-    - **YOUR ACTION (Step 5 - Additional Python Context):** You analyze `base_agent.py` and see it imports:
-      - `from ..events.event import Event`
-      - `from ..utils.logger import Logger`
-      - Call `get_file_content(repo='google/adk-python', file_path='google/adk/events/event.py')`.
-      - Call `get_file_content(repo='google/adk-python', file_path='google/adk/utils/logger.py')`.
-      - Both files are automatically stored in 'python_context_files'.
+    - **YOUR ACTION (Step 5 - Comprehensive TypeScript Context):** 
+      - You analyze `BaseAgent.ts` and see it imports:
+        - `import Event from '../events/Event'`
+        - `import Logger from '../utils/Logger'`
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/events/Event.ts')`.
+      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/utils/Logger.ts')`.
+      - You also gather similar files to understand patterns:
+        - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/Agent.ts')` (similar agent file)
+        - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/tests/agents/BaseAgent.test.ts')` (test file for BaseAgent)
+      - All files are automatically stored in 'typescript_context_files'.
 
-    - **YOUR ACTION (Step 6 - Additional TypeScript Context):** You analyze `base-agent.ts` and see it imports:
-      - `import  Event  from '../events/event'`
-      - `import Logger  from '../utils/logger'`
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/events/event.ts')`.
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/utils/logger.ts')`.
-      - Both files are automatically stored in 'typescript_context_files'.
-
-    - **YOUR ACTION (Step 7 - Summary):** Provide a brief summary of all the files you've collected:
+    - **YOUR ACTION (Step 6 - Summary):** Provide a brief summary of all the files you've collected:
       - Commit analyzed: a1b2c3d4
-      - Python files collected: base_agent.py, event.py, logger.py
-      - TypeScript files collected: base-agent.ts, event.ts, logger.ts
+      - Python files collected: base_agent.py
+      - TypeScript files collected: BaseAgent.ts, Event.ts, Logger.ts, Agent.ts, BaseAgent.test.ts
     ---
     """,
 )
@@ -160,7 +157,7 @@ context_gatherer_agent = Agent(
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
-    tools=[write_local_file, build_typescript_project, run_typescript_tests, commit_and_push_changes],
+    tools=[write_local_file, build_typescript_project, run_typescript_tests, commit_and_push_changes, create_pull_request],
     before_agent_callback=load_gathered_context,
     
     instruction="""
@@ -170,8 +167,8 @@ code_translator_agent = Agent(
     - The full commit diff showing exactly what changed in the Python code
     - The complete list of Python files that were modified
     - The full content of those modified Python files
-    - Additional Python files from the project to help you understand the broader context and dependencies
     - The equivalent TypeScript files from the target repository to help you understand the TypeScript project structure and patterns
+    - Additional TypeScript files including imports and similar files (like other tests or components) to help you understand dependencies, patterns, and conventions
     - The full file structure of both repositories to help you locate files and understand the project organization
 
     Your task is to take this commit's changes and accurately port them to the TypeScript codebase, maintaining consistency with the existing TypeScript patterns and conventions.
@@ -183,20 +180,19 @@ code_translator_agent = Agent(
 
     - **SOURCE REPOSITORY:** `google/adk-python`
       - This is the official Python Agent Development Kit where new features and bug fixes originate.
-      - The context gatherer has already collected all relevant Python files and their content.
+      - The context gatherer has already collected all relevant Python files that were changed in the commit.
 
     - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
       - This is the TypeScript port of the Python library.
       - Your goal is to accurately translate ONLY the specific Python changes shown in the commit diff into their TypeScript equivalents.
+      - The context gatherer has collected comprehensive TypeScript context to help you understand the project's patterns and conventions.
     ---
 
     **COMMIT INFORMATION**
     
     Commit SHA: {gathered_context}
 
-    
-    IMPORTANT : if you were not given valid values, exit immediately and report the error.
-    
+        
     **YOUR TASK STEPS**
 
     All necessary context has been gathered and loaded into the session state from a JSON file. You must:
@@ -208,22 +204,38 @@ code_translator_agent = Agent(
        - Plan your translation approach to maintain consistency with the TypeScript codebase
 
     2. **TRANSLATE AND WRITE:**
-       - For each file in the "Changed files" list, find its TypeScript equivalent
+       - For each file in the "Changed files" list, find its TypeScript equivalent using the mapping rules below
        - Take the existing TypeScript file content
-       - Apply ONLY the changes shown in the diff (convert + lines to TypeScript, remove equivalent of - lines)
+       - Apply the changes shown in the diff accordingly
        - Immediately generate a write_local_file tool call with the complete updated TypeScript file
-       - The file_path parameter should contain the TypeScript file path (e.g., src/models/google-llm.ts)
-       - The content parameter must contain the **ENTIRE** TypeScript file with ONLY the diff changes applied
-
+       - The file_path parameter should contain the TypeScript file path (e.g., src/models/GoogleLlm.ts)
+       - The content parameter must contain the **ENTIRE** TypeScript file with  the appropriate changes applied
+       
+       **CRITICAL - FILE NAMING MAPPING EXAMPLES:**
+       Use these examples to map Python files to their TypeScript equivalents - DO NOT create new files with Python naming if an equivalent file already exists:
+       
+       **MODELS:**
+       - `src/google/adk/models/google_llm.py` -> UPDATE EXISTING `src/models/GoogleLlm.ts`
+       - `src/google/adk/models/base_llm.py` -> UPDATE EXISTING `src/models/BaseLlm.ts`
+       - `src/google/adk/models/llm_response.py` -> UPDATE EXISTING `src/models/LlmResponse.ts`
+       
+       **AGENTS:**
+       - `src/google/adk/agents/base_agent.py` -> UPDATE EXISTING `src/agents/BaseAgent.ts`
+       - `src/google/adk/agents/agent.py` -> UPDATE EXISTING `src/agents/Agent.ts`
+       
+       **TESTS:**
+       - `tests/unittests/models/test_google_llm.py` -> UPDATE EXISTING `tests/unittests/models/gemini.test.ts`
+       - `tests/unittests/agents/test_agent.py` -> UPDATE EXISTING `tests/unittests/agents/agent.test.ts`
+       
     3. **BUILD AND VERIFY:**
        - After writing all translated files, call build_typescript_project to ensure the changes compile correctly
        - If the build fails, analyze the errors and fix any TypeScript-specific issues
        - Repeat the write/build cycle until the project builds successfully
 
     4. **TEST RELEVANT FUNCTIONALITY:**
-       - Look at the TypeScript repository structure to identify available integration tests
-       - Select 1-3 relevant integration tests that are most likely to be affected by your changes
-       - Call run_typescript_tests with the selected test paths (e.g., ["src/tests/agents/agent.test.ts", "src/tests/models/llm.test.ts"])
+       - Identify 2-3 relevant test files that are most likely to be affected by your changes
+       - Call run_typescript_tests with a list of test file names (e.g., ["BaseAgent.test.ts", "agent.test.ts"])
+       - Jest will automatically find and run these test files by name
        - If tests fail, analyze the failures and go back to step 2 to fix the issues
        - Repeat the write/build/test cycle until all tests pass
 
@@ -236,11 +248,23 @@ code_translator_agent = Agent(
          - author_email: "noreply@github.com" (optional, uses git config if not provided)
        - This will stage all your changes, commit them, and push to the remote branch
 
-    6. **SUMMARIZE:** Provide a concise summary:
+    6. **CREATE PULL REQUEST:**
+       - After successfully committing and pushing changes, create a pull request
+       - Call create_pull_request with:
+         - username: "njraladdin"
+         - repo: "adk-typescript"
+         - title: A descriptive title (e.g., "Port feature X from Python ADK commit abc1234")
+         - body: A detailed description of the changes made, including the original commit SHA and what was ported
+         - head_branch: The branch name that was created (usually "port-<commit_sha>")
+         - base_branch: "main"
+       - This will create a pull request for review and merging
+
+    7. **SUMMARIZE:** Provide a concise summary:
        - List ONLY the files you translated (should match "Changed files" exactly)
        - Describe ONLY the specific changes made 
        - Report on test results
        - Confirm that changes have been committed and pushed to the branch
+       - Confirm that a pull request has been created and provide the PR URL
        - Confirm that no other changes were made
 
     ---
@@ -263,14 +287,14 @@ code_translator_agent = Agent(
     "The diff shows two changes to base_agent.py:
     1. Changed logger.info to logger.debug for event processing
     2. Added event_count increment after processing
-    The TypeScript equivalent file would be src/agents/base-agent.ts"
+    The TypeScript equivalent file would be src/agents/BaseAgent.ts"
 
     explain to the user your plan.
 
     **Step 2 - TRANSLATE AND WRITE (Tool Call):**
     ```python
     write_local_file(
-        file_path="src/agents/base-agent.ts",
+        file_path="src/agents/BaseAgent.ts",
         content='''[Here should be TypeScript code with ONLY the changes from the diff applied, 
 while maintaining all other existing code unchanged]'''
     )
@@ -284,7 +308,7 @@ while maintaining all other existing code unchanged]'''
     **Step 4 - TEST RELEVANT FUNCTIONALITY (Tool Call):**
     ```python
     run_typescript_tests(
-        test_paths=["src/tests/agents/base-agent.test.ts", "src/tests/agents/agent-integration.test.ts"]
+        test_names=["BaseAgent.test.ts", "agent.test.ts"]
     )
     ```
     
@@ -298,33 +322,44 @@ while maintaining all other existing code unchanged]'''
     )
     ```
     
-    **Step 6 - SUMMARIZE (Text Output):**
-    "Translated changes from google/adk/agents/base_agent.py to src/agents/base-agent.ts:
+    **Step 6 - CREATE PULL REQUEST (Tool Call):**
+    ```python
+    create_pull_request(
+        username="njraladdin",
+        repo="adk-typescript",
+        title="Port base agent logging changes from Python ADK commit abc1234",
+        body="This PR ports logging changes from Python ADK commit abc1234. Changes include:\\n\\n1. Changed logger.info to logger.debug for event processing\\n2. Added eventCount increment after processing\\n\\nOriginal commit: https://github.com/google/adk-python/commit/abc1234",
+        head_branch="port-abc1234",
+        base_branch="main"
+    )
+    ```
+    
+    **Step 7 - SUMMARIZE (Text Output):**
+    "Translated changes from google/adk/agents/base_agent.py to src/agents/BaseAgent.ts:
     1. Changed logger.info to logger.debug
     2. Added eventCount increment
     Build completed successfully.
     Tests passed: 2/2 integration tests passed.
     Changes committed and pushed to branch 'port-abc1234'.
+    Pull request created: [PR URL from the tool response]
     No other modifications were made."
 
     **WHAT NOT TO DO:**
      Don't fix unrelated bugs or issues you notice
      Don't improve code style or add missing features
-     Don't modify files not listed in "Changed files"
-     Don't make changes not shown in the diff
      Don't "optimize" or "enhance" the existing code
-     Don't run unit tests - focus only on integration tests
+    Don't run unit tests - focus only on integration tests
+     Don't provide full test paths - just provide test file names
 
     **WHAT TO DO:**  
      Only translate the exact changes shown in the commit diff
      Preserve all existing code that isn't changed in the diff
      Apply precise TypeScript equivalents of Python changes
-     Run relevant integration tests to verify your changes work correctly
+     Run relevant tests by providing test file names to verify your changes work correctly
      If a Python file is new (no TypeScript equivalent exists), create a new file in the equivalent location
      If tests fail, iterate on your changes until they pass
+     there might be small differences in how the projects are structured / implemented due to the different languages, but you should try and work with that
 
-    Remember: Your goal is to produce a TypeScript equivalent of the exact commit, 
-    not to improve or enhance the codebase beyond what was changed in the Python commit.
     """
 )
 

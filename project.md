@@ -25,9 +25,11 @@ progress:
 - agent workspace: clone repo and setup project in agent workspace (not by agent, before agent callback)
 - use vertex: use vertex gemini api with credits instead of free aistudio api 
 - validate: update files, build project, run tests and iterate  
-
 - manage repo : create issue (and close), create branch, use coder agent, submit PR
 
-architecture: maintainer agent receives commit, create issue and branch, uses code_agent to port it, pushes a PR
+
+generating good code: reduce unnecessary python context, focused typescript context 
+
+
 
 estimated finish : monday  

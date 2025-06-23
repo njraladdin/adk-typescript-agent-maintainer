@@ -7,5 +7,6 @@ and tool name and output at the end of execution.
 """Tools package for the ADK TypeScript maintainer agent."""
 
 from .commit_and_push_changes import commit_and_push_changes
+from .create_pull_request import create_pull_request
 
-__all__ = ['commit_and_push_changes'] 
+__all__ = ['commit_and_push_changes', 'create_pull_request'] 
