@@ -323,8 +323,9 @@ def setup_typescript_repository_environment(project_path: Path) -> Tuple[bool, s
         
         # Get environment variables directly from system environment
         env_vars = {
-            'GOOGLE_GENAI_USE_VERTEXAI': os.getenv('GOOGLE_GENAI_USE_VERTEXAI', 'false'),
-            'GOOGLE_API_KEY': os.getenv('GOOGLE_API_KEY', '')
+            'GOOGLE_GENAI_USE_VERTEXAI': os.getenv('GOOGLE_GENAI_USE_VERTEXAI', 'TRUE'),
+            'GOOGLE_CLOUD_PROJECT': os.getenv('GOOGLE_CLOUD_PROJECT', 'progress-tracker-e27a5'),
+            'GOOGLE_CLOUD_LOCATION': os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1')
         }
         
         # Create .env file in the repository
