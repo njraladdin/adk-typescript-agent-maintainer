@@ -1,13 +1,16 @@
 from typing import Optional, Dict, Any
 import requests
 from requests.exceptions import RequestException
+from google.adk.tools import ToolContext
+
+TOKEN_CACHE_KEY = "github_token"
 
 def create_branch(
     username: str,
     repo: str,
     branch_name: str,
     base_branch: str = "main",
-    github_token: Optional[str] = None
+    tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
     Creates a new branch in a GitHub repository.
@@ -17,7 +20,7 @@ def create_branch(
         repo (str): GitHub repository name
         branch_name (str): Name of the new branch to create
         base_branch (str): Name of the branch to base the new branch on (default: 'main')
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         Dict[str, Any]: The created reference data from GitHub API
@@ -29,17 +32,36 @@ def create_branch(
     print(f"[CREATE_BRANCH] username={username} repo={repo} branch_name={branch_name} base_branch={base_branch}")
     
     try:
+        # Step 1: Check for cached token
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
+        
+        # If no token, we need to get it from environment or request it
+        if not github_token:
+            # For now, let's try to get it from environment as a fallback
+            import os
+            github_token = os.getenv("GITHUB_TOKEN")
+            
+            if github_token:
+                # Cache the token for future use
+                tool_context.state[TOKEN_CACHE_KEY] = github_token
+            else:
+                error_result = {
+                    'status': 'error', 
+                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
+                }
+                # Log the error output
+                print(f"[CREATE_BRANCH] : output status=error, message={error_result['message']}")
+                return error_result
+
         # First, get the SHA of the base branch
         base_url = f"https://api.github.com/repos/{username}/{repo}"
         headers = {
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}"
         }
         
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
-        
         # Get the SHA of the base branch
-        base_ref_url = f"{base_url}/git/ref/heads/{base_branch}"
+        base_ref_url = f"{base_url}/git/refs/heads/{base_branch}"
         base_response = requests.get(base_ref_url, headers=headers)
         base_response.raise_for_status()
         base_sha = base_response.json()["object"]["sha"]
@@ -55,22 +77,35 @@ def create_branch(
         response.raise_for_status()
         
         result = response.json()
+        success_result = {
+            "status": "success",
+            "data": result,
+            "branch_name": branch_name,
+            "base_sha": base_sha
+        }
         
         # Log the success output
         print(f"[CREATE_BRANCH] : output status=success, created branch={branch_name} from base_sha={base_sha[:7]}")
-        return result
+        return success_result
     
     except RequestException as error:
+        # If we get a 401/403, clear the cached token
+        if hasattr(error, 'response') and error.response.status_code in (401, 403):
+            tool_context.state[TOKEN_CACHE_KEY] = None
+            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
+        else:
+            print(f"Error creating branch: {error}")
+            error_result = {'status': 'error', 'message': str(error)}
+        
         # Log the error output
-        print(f"[CREATE_BRANCH] : output status=error, message={str(error)}")
-        print(f"Error creating branch: {error}")
-        raise
+        print(f"[CREATE_BRANCH] : output status=error, message={error_result['message']}")
+        return error_result
 
 def branch_exists(
     username: str,
     repo: str,
     branch_name: str,
-    github_token: Optional[str] = None
+    tool_context: ToolContext = None
 ) -> bool:
     """
     Checks if a branch exists in a GitHub repository.
@@ -79,7 +114,7 @@ def branch_exists(
         username (str): GitHub username or organization name
         repo (str): GitHub repository name
         branch_name (str): Name of the branch to check
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         bool: True if the branch exists, False otherwise
@@ -88,13 +123,28 @@ def branch_exists(
     print(f"[BRANCH_EXISTS] username={username} repo={repo} branch_name={branch_name}")
     
     try:
-        url = f"https://api.github.com/repos/{username}/{repo}/git/ref/heads/{branch_name}"
-        headers = {
-            "Accept": "application/vnd.github.v3+json"
-        }
+        # Step 1: Check for cached token
+        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
         
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
+        # If no token, we need to get it from environment or request it
+        if not github_token:
+            # For now, let's try to get it from environment as a fallback
+            import os
+            github_token = os.getenv("GITHUB_TOKEN")
+            
+            if github_token:
+                # Cache the token for future use
+                tool_context.state[TOKEN_CACHE_KEY] = github_token
+            else:
+                # Log the error output
+                print(f"[BRANCH_EXISTS] : output status=error, message=GitHub token not found")
+                return False
+
+        url = f"https://api.github.com/repos/{username}/{repo}/git/refs/heads/{branch_name}"
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}"
+        }
         
         response = requests.get(url, headers=headers)
         exists = response.status_code == 200
@@ -113,7 +163,7 @@ def create_branch_if_not_exists(
     repo: str,
     branch_name: str,
     base_branch: str = "main",
-    github_token: Optional[str] = None
+    tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
     Creates a new branch if it doesn't already exist.
@@ -123,7 +173,7 @@ def create_branch_if_not_exists(
         repo (str): GitHub repository name
         branch_name (str): Name of the branch to create
         base_branch (str): Name of the branch to base the new branch on (default: 'main')
-        github_token (Optional[str]): GitHub personal access token for authentication
+        tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         Dict[str, Any]: The branch reference data from GitHub API
@@ -134,8 +184,8 @@ def create_branch_if_not_exists(
     # Log the start of the tool execution with main parameters
     print(f"[CREATE_BRANCH_IF_NOT_EXISTS] username={username} repo={repo} branch_name={branch_name} base_branch={base_branch}")
     
-    if not branch_exists(username, repo, branch_name, github_token):
-        result = create_branch(username, repo, branch_name, base_branch, github_token)
+    if not branch_exists(username, repo, branch_name, tool_context):
+        result = create_branch(username, repo, branch_name, base_branch, tool_context)
         # Log the success output
         print(f"[CREATE_BRANCH_IF_NOT_EXISTS] : output status=success, created new branch={branch_name}")
         return result
@@ -143,7 +193,7 @@ def create_branch_if_not_exists(
         error_msg = f"Branch '{branch_name}' already exists"
         # Log the error output
         print(f"[CREATE_BRANCH_IF_NOT_EXISTS] : output status=error, message={error_msg}")
-        raise ValueError(error_msg)
+        return {'status': 'error', 'message': error_msg}
 
 if __name__ == "__main__":
     # Example usage
@@ -156,12 +206,19 @@ if __name__ == "__main__":
         import os
         github_token = os.getenv("GITHUB_TOKEN")
         
+        # In real usage, tool_context would be provided by ADK
+        class MockToolContext:
+            def __init__(self):
+                self.state = {}
+        
+        mock_context = MockToolContext()
+        
         result = create_branch_if_not_exists(
             test_username,
             test_repo,
             test_branch,
             "main",
-            github_token
+            mock_context
         )
         print(f"Created branch: {test_branch}")
     except Exception as error:
