@@ -10,6 +10,7 @@ from google.adk.tools import agent_tool
 # Import maintainer tools
 from .tools.create_issue import create_issue
 from .tools.close_issue import close_issue
+from .tools.delete_issue import delete_issue
 from .tools.create_branch import create_branch
 from .tools.create_pull_request import create_pull_request
 from .tools.get_commit_diff import get_commit_diff
@@ -69,9 +70,15 @@ root_agent = Agent(
         "   - Use `create_branch` to create feature branch\n\n"
         
         "6. **Translate Code** (only if eligible):\n"
-        "   - Use `CoderAgent` tool to translate the Python code to TypeScript\n\n"
+        "   - Use `CoderAgent` tool to translate the Python code to TypeScript\n"
+        "   - The CoderAgent has 5 retries to successfully complete the translation\n"
+        "   - If CoderAgent fails after 5 retries, it will return a failure status\n\n"
         
-        "7. **Submit Pull Request** (only if eligible):\n"
+        "7. **Handle Translation Result:**\n"
+        "   - **If CoderAgent succeeds:** Continue to step 8 (Submit Pull Request)\n"
+        "   - **If CoderAgent fails:** Use `delete_issue` to delete the tracking issue with failure reason\n\n"
+        
+        "8. **Submit Pull Request** (only if CoderAgent succeeds):\n"
         "   - Use `create_pull_request` to submit the translated code\n"
         "   - Link PR to the original tracking issue\n\n"
         
@@ -134,7 +141,12 @@ root_agent = Agent(
         "  - Provided comprehensive PR-ready summary\n"
         "```\n\n"
         
-        "**Step 7 - Submit Pull Request:**\n"
+        "**Step 7 - Handle Translation Result (Success):**\n"
+        "```\n"
+        "CoderAgent completed successfully. Proceeding to create pull request...\n"
+        "```\n\n"
+        
+        "**Step 8 - Submit Pull Request:**\n"
         "```\n"
         "Creating pull request for issue #45...\n"
         "Using CoderAgent's comprehensive summary as PR body...\n"
@@ -187,6 +199,38 @@ root_agent = Agent(
         "[SUCCESS] Workflow complete (no further action needed)\n"
         "```\n\n"
         
+        "**EXAMPLE WORKFLOW - CODER AGENT FAILURE:**\n"
+        "User: 'Port commit ghi9012'\n\n"
+        
+        "**Steps 1-5 - Same as eligible commit example**\n"
+        "...(create issue, check eligibility, create branch)...\n\n"
+        
+        "**Step 6 - Translate Code (Failure):**\n"
+        "```\n"
+        "Calling CoderAgent to translate commit ghi9012...\n"
+        "```\n"
+        "Tool: `CoderAgent(commit_id='ghi9012')`\n"
+        "```\n"
+        "[FAILED] CoderAgent failed after 5 retries\n"
+        "  - Retry 1: TypeScript compilation error - undefined interface\n"
+        "  - Retry 2: Build failed - module resolution issues\n"
+        "  - Retry 3: Tests failed - async/await incompatibility\n"
+        "  - Retry 4: Build failed - type mismatch errors\n"
+        "  - Retry 5: Tests failed - dependency injection issues\n"
+        "  Status: FAILED\n"
+        "  Reason: Complex async patterns difficult to port directly\n"
+        "```\n\n"
+        
+        "**Step 7 - Handle Translation Result (Failure):**\n"
+        "```\n"
+        "CoderAgent failed after 5 retries. Deleting tracking issue...\n"
+        "```\n"
+        "Tool: `delete_issue(username='njraladdin', repo='adk-typescript', issue_number=47, reason='CoderAgent failed after 5 retries: Complex async patterns difficult to port directly')`\n"
+        "```\n"
+        "[SUCCESS] Deleted issue #47 with failure explanation\n"
+        "[SUCCESS] Workflow complete (manual intervention may be required)\n"
+        "```\n\n"
+        
         "**INDIVIDUAL OPERATIONS:**\n"
         "You can also handle specific requests:\n"
         "- 'Create issue for commit abc123' -> Use `get_commit_diff` then `create_issue`\n"
@@ -199,9 +243,10 @@ root_agent = Agent(
         "- `get_commit_diff`: Analyze commits and get detailed information about changes\n"
         "- `create_issue`: Create tracking issues for commits\n"
         "- `create_branch`: Create feature branches (supports both custom names and issue-based naming)\n"
-        "- `CoderAgent`: Translate Python code to TypeScript (sub-agent that provides comprehensive PR-ready summary)\n"
+        "- `CoderAgent`: Translate Python code to TypeScript (sub-agent with 5-retry system and comprehensive PR-ready summary)\n"
         "- `create_pull_request`: Submit pull requests with issue linking\n"
-        "- `close_issue`: Close issues with explanations\n\n"
+        "- `close_issue`: Close issues with explanations\n"
+        "- `delete_issue`: Delete issues when CoderAgent fails (adds explanation comment and closes)\n\n"
         
         "**ELIGIBILITY CRITERIA:**\n"
         "[INELIGIBLE] **Ineligible commits:**\n"
@@ -242,9 +287,11 @@ root_agent = Agent(
         "- Never skip the eligibility check - it prevents wasted effort\n"
         "- Only create branches and translate code for eligible commits\n"
         "- Always close ineligible issues with clear explanations\n"
-        "- Use CoderAgent for all code translation work (it handles all file operations)\n"
-        "- Link PRs to original tracking issues for audit trail\n"
-        "- Provide clear status updates at each step"
+        "- Use CoderAgent for all code translation work (it has 5-retry system and handles all file operations)\n"
+        "- If CoderAgent fails after 5 retries, delete the tracking issue instead of creating PR\n"
+        "- If CoderAgent succeeds, link PRs to original tracking issues for audit trail\n"
+        "- Provide clear status updates at each step\n"
+        "- Handle both success and failure scenarios appropriately"
     ),
     tools=[
         get_commit_diff,
@@ -253,5 +300,6 @@ root_agent = Agent(
         coder_agent_tool,  # This handles all code translation and file operations
         create_pull_request,
         close_issue,
+        delete_issue,
     ],
 ) 

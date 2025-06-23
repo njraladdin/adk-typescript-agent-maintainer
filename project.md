@@ -30,6 +30,15 @@ progress:
 
 generating good code: reduce unnecessary python context, focused typescript context 
 
+limit number of tries for code writer. if stil lfail after all retries, delete issue 
+
+ability to fetch a another file in code translation agent 
+
+
+
+monitor commits: monitor newest commits, check if they were processed yet or not, send them to agent 
+
+
 
 
 estimated finish : monday  

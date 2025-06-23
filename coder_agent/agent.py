@@ -117,7 +117,7 @@ context_gatherer_agent = Agent(
 
     - **INPUT:** Commit 'a1b2c3d4'
 
-    - **YOUR ACTION (Step 1):** Call `get_commit_diff(repo='google/adk-python', commit_sha='a1b2c3d4')`.
+    - **YOUR ACTION (Step 1):** Call `get_commit_diff(username='google', repo='adk-python', commit_sha='a1b2c3d4')`.
       - Result: Changed file is `google/adk/agents/base_agent.py`.
       - The tool automatically stores this in the session state under 'commit_info'.
 
@@ -173,6 +173,18 @@ code_translator_agent = Agent(
 
     Your task is to take this commit's changes and accurately port them to the TypeScript codebase, maintaining consistency with the existing TypeScript patterns and conventions.
 
+    **RETRY SYSTEM:**
+    You have a maximum of 5 retries to successfully complete the translation. A retry is triggered when:
+    - The TypeScript build fails after writing code
+    - Tests fail after building successfully
+    - Any other compilation or runtime error occurs
+    
+    If you exceed 5 retries, you MUST:
+    1. Provide a detailed explanation of what you struggled with
+    2. List the specific errors you encountered
+    3. Suggest potential solutions or reasons for the difficulty
+    4. Return a failure status so the maintainer agent can handle cleanup
+
     ---
     **MISSION CONTEXT**
 
@@ -227,17 +239,21 @@ code_translator_agent = Agent(
        - `tests/unittests/models/test_google_llm.py` -> UPDATE EXISTING `tests/unittests/models/gemini.test.ts`
        - `tests/unittests/agents/test_agent.py` -> UPDATE EXISTING `tests/unittests/agents/agent.test.ts`
        
-    3. **BUILD AND VERIFY:**
+    3. **BUILD AND VERIFY (with retry tracking):**
        - After writing all translated files, call build_typescript_project to ensure the changes compile correctly
        - If the build fails, analyze the errors and fix any TypeScript-specific issues
-       - Repeat the write/build cycle until the project builds successfully
+       - Track retry count: Each build failure + code rewrite counts as 1 retry
+       - Repeat the write/build cycle until the project builds successfully OR you exceed 5 retries
+       - If 5 retries exceeded, provide detailed failure explanation and stop
 
-    4. **TEST RELEVANT FUNCTIONALITY:**
+    4. **TEST RELEVANT FUNCTIONALITY (with retry tracking):**
        - Identify 2-3 relevant test files that are most likely to be affected by your changes
        - Call run_typescript_tests with a list of test file names (e.g., ["BaseAgent.test.ts", "agent.test.ts"])
        - Jest will automatically find and run these test files by name
        - If tests fail, analyze the failures and go back to step 2 to fix the issues
-       - Repeat the write/build/test cycle until all tests pass
+       - Track retry count: Each test failure + code rewrite counts as 1 retry
+       - Repeat the write/build/test cycle until all tests pass OR you exceed 5 retries
+       - If 5 retries exceeded, provide detailed failure explanation and stop
 
     5. **COMMIT AND PUSH CHANGES:**
        - After all translations are complete and tests pass, commit your changes
@@ -248,7 +264,14 @@ code_translator_agent = Agent(
          - author_email: "noreply@github.com" (optional, uses git config if not provided)
        - This will stage all your changes, commit them, and push to the remote branch
 
-    6. **PROVIDE COMPREHENSIVE SUMMARY:** Provide a detailed summary for the maintainer agent to use in the pull request. Include all relevant details that would help reviewers understand the changes and files updated / created.
+    6. **PROVIDE COMPREHENSIVE SUMMARY:** 
+       - If successful: Provide a detailed summary for the maintainer agent to use in the pull request. Include all relevant details that would help reviewers understand the changes and files updated / created.
+       - If failed after 5 retries: Provide a comprehensive failure report including:
+         * What you were trying to accomplish
+         * All errors encountered during retries
+         * Specific technical challenges (e.g., TypeScript compilation errors, test failures)
+         * Suggested next steps or potential solutions
+         * Return status: "FAILED" so maintainer agent knows to delete the issue instead of creating PR
 
     ---
     **EXAMPLE SCENARIO**
@@ -283,16 +306,20 @@ while maintaining all other existing code unchanged]'''
     )
     ```
 
-    **Step 3 - BUILD AND VERIFY (Tool Call):**
+    **Step 3 - BUILD AND VERIFY (Tool Call with retry tracking):**
     ```python
     build_typescript_project()
+    # If build fails, track as retry #1, fix code, and try again
+    # Continue until success or 5 retries exceeded
     ```
     
-    **Step 4 - TEST RELEVANT FUNCTIONALITY (Tool Call):**
+    **Step 4 - TEST RELEVANT FUNCTIONALITY (Tool Call with retry tracking):**
     ```python
     run_typescript_tests(
         test_names=["BaseAgent.test.ts", "agent.test.ts"]
     )
+    # If tests fail, track as additional retry, fix code, and try again
+    # Continue until success or 5 retries exceeded total
     ```
     
     **Step 5 - COMMIT AND PUSH CHANGES (Tool Call):**
