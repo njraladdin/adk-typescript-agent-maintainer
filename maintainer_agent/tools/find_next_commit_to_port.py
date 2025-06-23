@@ -53,18 +53,29 @@ def find_next_commit_to_port(
             - The next commit to port with its diff info and file contents, or None if no commits need porting
             - An error message if there was an error, or None if successful
     """
+    # Log the start of the tool execution with main parameters
+    print(f"[FIND_NEXT_COMMIT_TO_PORT] python_repo={python_username}/{python_repo} ts_repo={ts_username}/{ts_repo} max_items={max_items}")
+    
     # Get recent commits from Python repo (newest first)
     commits = get_repo_commits(python_username, python_repo, max_items)
     if commits is None:
-        return None, f"Failed to fetch commits from {python_username}/{python_repo}"
+        error_msg = f"Failed to fetch commits from {python_username}/{python_repo}"
+        # Log the error output
+        print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=error, message={error_msg}")
+        return None, error_msg
     
     if not commits:
+        # Log the output when no commits found
+        print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=success, no_commits_found=True")
         return None, None  # No commits found, but no error
     
     # Get recent issues from TypeScript repo
     issues = get_repo_issues(ts_username, ts_repo, state="all", count=max_items)
     if issues is None:
-        return None, f"Failed to fetch issues from {ts_username}/{ts_repo}"
+        error_msg = f"Failed to fetch issues from {ts_username}/{ts_repo}"
+        # Log the error output
+        print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=error, message={error_msg}")
+        return None, error_msg
     
     # Create a set of processed commit IDs from issue titles
     processed_commits = set()
@@ -92,7 +103,10 @@ def find_next_commit_to_port(
             # Found an unprocessed commit - get its diff
             diff_info = get_commit_diff(python_username, python_repo, commit_sha)
             if diff_info is None:
-                return None, f"Failed to fetch diff for commit {commit_sha}"
+                error_msg = f"Failed to fetch diff for commit {commit_sha}"
+                # Log the error output
+                print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=error, message={error_msg}")
+                return None, error_msg
             
             # Prepare files with content
             files_with_content: List[FileWithContent] = []
@@ -119,14 +133,21 @@ def find_next_commit_to_port(
                     "full_file_content": full_file_content
                 })
             
-            return {
+            result = {
                 "commit": commit,
                 "files": files_with_content,
                 "total_additions": diff_info["total_additions"],
                 "total_deletions": diff_info["total_deletions"],
                 "total_files_changed": diff_info["total_files_changed"]
-            }, None
+            }
             
+            # Log the success output
+            commit_msg = commit["commit"]["message"].split("\n")[0][:50]  # First line of commit message, truncated
+            print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=success, found_commit={commit_sha_short}, message='{commit_msg}...', files_changed={result['total_files_changed']}, additions={result['total_additions']}, deletions={result['total_deletions']}")
+            return result, None
+            
+    # Log the output when no unprocessed commits found
+    print(f"[FIND_NEXT_COMMIT_TO_PORT] : output status=success, no_unprocessed_commits=True, checked_commits={len(commits)}")
     return None, None  # No unprocessed commits found, but no error
 
 if __name__ == "__main__":

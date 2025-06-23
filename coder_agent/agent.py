@@ -43,6 +43,9 @@ class GatheredContext(BaseModel):
     equivalent_typescript_files: Dict[str, str] = Field(description="A dictionary mapping the path of equivalent TypeScript files to their full content.")
     additional_context_files: Dict[str, str] = Field(description="A dictionary for any other files that were fetched for additional context.")
 
+class CoderAgentInput(BaseModel):
+    """Input model for the CoderAgent tool."""
+    commit_id: str = Field(description="The full SHA of the commit to be ported from Python to TypeScript.")
 
 # ==============================================================================
 # 2. DEFINE THE SUB-AGENTS
@@ -342,6 +345,9 @@ code_translator_tool = agent_tool.AgentTool(agent=code_translator_agent)
 root_agent = Agent(
     name="CodePorterCoordinator",
     model="gemini-2.5-flash",
+    
+    # Add the input schema for proper tool integration
+    input_schema=CoderAgentInput,
     
     # Provide the sub-agents as tools to the coordinator.
     tools=[
