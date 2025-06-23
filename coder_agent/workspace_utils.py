@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 
 from .constants import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR, TYPESCRIPT_REPO_URL
+from .git_utils import clone_repo, is_windows_platform
 
 
 def get_npm_command() -> str:
@@ -22,18 +23,8 @@ def get_npm_command() -> str:
     Returns:
         str: The npm command to use ('npm.cmd' on Windows, 'npm' otherwise)
     """
-    is_windows = platform.system().lower() == 'windows'
+    is_windows = is_windows_platform()
     return "npm.cmd" if is_windows else "npm"
-
-
-def is_windows_platform() -> bool:
-    """
-    Check if the current platform is Windows.
-    
-    Returns:
-        bool: True if running on Windows, False otherwise
-    """
-    return platform.system().lower() == 'windows'
 
 
 def create_workspace_directory(workspace_path: Optional[Path] = None) -> Path:
@@ -51,50 +42,6 @@ def create_workspace_directory(workspace_path: Optional[Path] = None) -> Path:
     
     workspace_path.mkdir(exist_ok=True, parents=True)
     return workspace_path
-
-
-def clone_repo(repo_url: str, target_path: Path, force: bool = False) -> Tuple[bool, str]:
-    """
-    Clone a Git repository to the specified path.
-    
-    Args:
-        repo_url: The URL of the repository to clone
-        target_path: The path where the repository should be cloned
-        force: If True, remove existing directory before cloning
-        
-    Returns:
-        Tuple[bool, str]: (success, message) - success status and descriptive message
-    """
-    is_windows = is_windows_platform()
-    
-    # Check if repository already exists
-    if target_path.exists():
-        if (target_path / ".git").exists() and not force:
-            return True, f"Repository already exists at {target_path}"
-        elif force:
-            import shutil
-            shutil.rmtree(target_path)
-    
-    try:
-        print(f"Cloning repository {repo_url} to {target_path}...")
-        subprocess.run(
-            ["git", "clone", repo_url, str(target_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-            shell=is_windows
-        )
-        
-        abs_path = target_path.absolute()
-        return True, f"Repository cloned successfully to {abs_path}"
-        
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Failed to clone repository: {e}"
-        if e.stderr:
-            error_msg += f"\nError details: {e.stderr}"
-        return False, error_msg
-    except Exception as e:
-        return False, f"Unexpected error during cloning: {e}"
 
 
 def install_dependencies(project_path: Path, npm_flags: Optional[list] = None) -> Tuple[bool, str]:

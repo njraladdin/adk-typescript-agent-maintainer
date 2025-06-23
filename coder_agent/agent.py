@@ -16,6 +16,7 @@ from .tools.get_file_content import get_file_content
 from .tools.write_local_file import write_local_file
 from .tools.build_typescript_project import build_typescript_project
 from .tools.run_typescript_tests import run_typescript_tests
+from .tools.commit_and_push_changes import commit_and_push_changes
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
@@ -156,7 +157,7 @@ context_gatherer_agent = Agent(
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
-    tools=[write_local_file, build_typescript_project, run_typescript_tests],
+    tools=[write_local_file, build_typescript_project, run_typescript_tests, commit_and_push_changes],
     before_agent_callback=load_gathered_context,
     
     instruction="""
@@ -223,10 +224,20 @@ code_translator_agent = Agent(
        - If tests fail, analyze the failures and go back to step 2 to fix the issues
        - Repeat the write/build/test cycle until all tests pass
 
-    5. **SUMMARIZE:** Provide a concise summary:
+    5. **COMMIT AND PUSH CHANGES:**
+       - After all translations are complete and tests pass, commit your changes
+       - Call commit_and_push_changes with:
+         - commit_message: A descriptive message about what was ported (e.g., "Port feature X from Python ADK commit abc1234")
+         - branch_name: The branch name that was created by the maintainer agent (usually "port-<commit_sha>")
+         - author_name: "ADK TypeScript Porter" (optional, uses git config if not provided)
+         - author_email: "noreply@github.com" (optional, uses git config if not provided)
+       - This will stage all your changes, commit them, and push to the remote branch
+
+    6. **SUMMARIZE:** Provide a concise summary:
        - List ONLY the files you translated (should match "Changed files" exactly)
        - Describe ONLY the specific changes made 
        - Report on test results
+       - Confirm that changes have been committed and pushed to the branch
        - Confirm that no other changes were made
 
     ---
@@ -274,12 +285,23 @@ while maintaining all other existing code unchanged]'''
     )
     ```
     
-    **Step 5 - SUMMARIZE (Text Output):**
+    **Step 5 - COMMIT AND PUSH CHANGES (Tool Call):**
+    ```python
+    commit_and_push_changes(
+        commit_message="Port base agent logging changes from Python ADK commit abc1234",
+        branch_name="port-abc1234",
+        author_name="ADK TypeScript Porter",
+        author_email="noreply@github.com"
+    )
+    ```
+    
+    **Step 6 - SUMMARIZE (Text Output):**
     "Translated changes from google/adk/agents/base_agent.py to src/agents/base-agent.ts:
     1. Changed logger.info to logger.debug
     2. Added eventCount increment
     Build completed successfully.
     Tests passed: 2/2 integration tests passed.
+    Changes committed and pushed to branch 'port-abc1234'.
     No other modifications were made."
 
     **WHAT NOT TO DO:**

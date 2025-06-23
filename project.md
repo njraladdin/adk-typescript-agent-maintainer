@@ -23,10 +23,11 @@ progress:
 - coder context gatherer agent is working.
 - coder writes code based on context 
 - agent workspace: clone repo and setup project in agent workspace (not by agent, before agent callback)
+- use vertex: use vertex gemini api with credits instead of free aistudio api 
+- validate: update files, build project, run tests and iterate  
 
-validate: update files there, build project and run tests 
-use vertex: use vertex gemini api with credits instead of free gemini one 
+- manage repo : create issue (and close), create branch, use coder agent, submit PR
 
-code writer: write code, validate by building and running tests, correct if necessary 
+architecture: maintainer agent receives commit, create issue and branch, uses code_agent to port it, pushes a PR
 
-estimated finish : sunday 
+estimated finish : monday  

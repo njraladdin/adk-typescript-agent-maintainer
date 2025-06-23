@@ -1,5 +1,14 @@
-"""ADK TypeScript maintainer agent package."""
+"""
+ADK TypeScript Coder Agent package.
 
-from .agent import root_agent
+This package contains the agent and tools for translating Python code to TypeScript.
+"""
 
-__all__ = ["root_agent"]
+from . import agent
+from . import tools
+from . import constants
+from . import workspace_utils
+from . import git_utils
+from . import callbacks
+
+__all__ = ["agent", "tools", "constants", "workspace_utils", "git_utils", "callbacks"]

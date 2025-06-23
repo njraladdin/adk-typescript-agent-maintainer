@@ -57,3 +57,5 @@ output/
 debug_output/
 
 agent_workspace/
+
+service-account-key.json
