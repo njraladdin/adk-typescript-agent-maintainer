@@ -12,6 +12,7 @@ def create_pull_request(
     body: str,
     head_branch: str,
     base_branch: str = "main",
+    issue_number: Optional[int] = None,
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
@@ -24,13 +25,18 @@ def create_pull_request(
         body (str): Pull request body/description
         head_branch (str): The name of the branch where your changes are implemented
         base_branch (str): The name of the branch you want the changes pulled into (default: 'main')
+        issue_number (Optional[int]): Issue number to automatically link and close when PR is merged
         tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         Dict[str, Any]: The created pull request data from GitHub API
     """
     # Log the start of the tool execution with main parameters
-    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head={head_branch} base={base_branch}")
+    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head={head_branch} base={base_branch} issue={issue_number}")
+    
+    # Add issue linking to body if issue_number is provided
+    if issue_number:
+        body = f"{body}\n\nRelated to #{issue_number}"
     
     try:
         # Step 1: Check for cached token

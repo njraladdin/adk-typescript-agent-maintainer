@@ -12,6 +12,7 @@ def create_pull_request(
     body: str,
     head_branch: str,
     base_branch: str = "main",
+    issue_number: Optional[int] = None,
     labels: Optional[List[str]] = None,
     draft: bool = False,
     tool_context: ToolContext = None
@@ -26,6 +27,7 @@ def create_pull_request(
         body (str): Pull request description
         head_branch (str): The name of the branch where your changes are implemented
         base_branch (str): The name of the branch you want the changes pulled into (default: 'main')
+        issue_number (Optional[int]): Issue number to automatically link and close when PR is merged
         labels (Optional[List[str]]): List of labels to apply to the pull request
         draft (bool): Whether to create the pull request as a draft (default: False)
         tool_context (ToolContext): Automatically injected by ADK for auth handling
@@ -37,7 +39,11 @@ def create_pull_request(
         RequestException: If there's an error creating the pull request
     """
     # Log the start of the tool execution with main parameters
-    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head_branch={head_branch} base_branch={base_branch} draft={draft}")
+    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head_branch={head_branch} base_branch={base_branch} issue={issue_number} draft={draft}")
+    
+    # Add issue linking to body if issue_number is provided
+    if issue_number:
+        body = f"{body}\n\nRelated to #{issue_number}"
     
     try:
         # Step 1: Check for cached token
