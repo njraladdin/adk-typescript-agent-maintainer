@@ -12,6 +12,7 @@ from .tools.create_issue import create_issue
 from .tools.close_issue import close_issue
 from .tools.create_branch import create_branch
 from .tools.create_pull_request import create_pull_request
+from .tools.get_commit_diff import get_commit_diff
 
 # Import coder agent as a tool
 from coder_agent.agent import root_agent as coder_agent
@@ -34,9 +35,10 @@ root_agent = Agent(
         "**HIGH-LEVEL PROCESS OVERVIEW:**\n"
         "The porting process follows a systematic approach to safely and efficiently translate Python commits to TypeScript:\n\n"
         
-        "1. **Create Tracking Issue** - First, create a GitHub issue to track the porting effort\n"
-        "2. **Check Eligibility** - Analyze if the commit contains changes that can/should be ported\n"
-        "3. **Handle Based on Eligibility:**\n"
+        "1. **Get Commit Information** - First, analyze the commit to understand what changed\n"
+        "2. **Create Tracking Issue** - Create a GitHub issue with detailed commit information\n"
+        "3. **Check Eligibility** - Analyze if the commit contains changes that can/should be ported\n"
+        "4. **Handle Based on Eligibility:**\n"
         "   - **If INELIGIBLE:** Close the issue with a clear explanation\n"
         "   - **If ELIGIBLE:** Continue with the porting process:\n"
         "     - Create a feature branch for the work\n"
@@ -48,52 +50,68 @@ root_agent = Agent(
         "**COMPLETE WORKFLOW:**\n"
         "Given a commit hash (e.g., 'abc1234'), you will:\n\n"
         
-        "1. **Create Tracking Issue**:\n"
-        "   - Use `create_issue` to create tracking issue for the commit\n\n"
+        "1. **Get Commit Information**:\n"
+        "   - Use `get_commit_diff` to analyze the commit and gather information about changed files\n"
+        "   - This information will be used to create a proper issue description and determine eligibility\n\n"
         
-        "2. **Check Eligibility**:\n"
-        "   - Analyze if commit is eligible for porting based on changed files and content\n"
+        "2. **Create Tracking Issue**:\n"
+        "   - Use `create_issue` to create tracking issue with detailed information from step 1\n\n"
+        
+        "3. **Check Eligibility**:\n"
+        "   - Analyze if commit is eligible for porting based on changed files and content from step 1\n"
         "   - Apply eligibility criteria (see below)\n\n"
         
-        "3. **Handle Based on Eligibility**:\n"
+        "4. **Handle Based on Eligibility**:\n"
         "   - **If INELIGIBLE:** Use `close_issue` with explanation and stop\n"
-        "   - **If ELIGIBLE:** Continue with steps 4-6\n\n"
+        "   - **If ELIGIBLE:** Continue with steps 5-7\n\n"
         
-        "4. **Create Branch** (only if eligible):\n"
+        "5. **Create Branch** (only if eligible):\n"
         "   - Use `create_branch` to create feature branch\n\n"
         
-        "5. **Translate Code** (only if eligible):\n"
+        "6. **Translate Code** (only if eligible):\n"
         "   - Use `CoderAgent` tool to translate the Python code to TypeScript\n\n"
         
-        "6. **Submit Pull Request** (only if eligible):\n"
+        "7. **Submit Pull Request** (only if eligible):\n"
         "   - Use `create_pull_request` to submit the translated code\n"
         "   - Link PR to the original tracking issue\n\n"
         
         "**EXAMPLE FULL WORKFLOW - ELIGIBLE COMMIT:**\n"
         "User: 'Port commit abc1234'\n\n"
         
-        "**Step 1 - Create Tracking Issue:**\n"
+        "**Step 1 - Get Commit Information:**\n"
+        "```\n"
+        "Analyzing commit abc1234...\n"
+        "```\n"
+        "Tool: `get_commit_diff(username='google', repo='adk-python', commit_sha='abc1234')`\n"
+        "```\n"
+        "[SUCCESS] Retrieved commit information:\n"
+        "  - Commit message: Add credential service\n"
+        "  - Files changed: google/adk/auth/service.py, tests/auth/test_service.py\n"
+        "  - Total additions: 45, deletions: 3\n"
+        "```\n\n"
+        
+        "**Step 2 - Create Tracking Issue:**\n"
         "```\n"
         "Creating tracking issue for commit abc1234...\n"
         "```\n"
-        "Tool: `create_issue(commit_sha='abc1234')`\n"
+        "Tool: `create_issue(username='njraladdin', repo='adk-typescript', title='[NEW COMMIT IN PYTHON VERSION] [commit:abc1234] Add credential service', body='...')`\n"
         "```\n"
         "[SUCCESS] Created issue #45: [NEW COMMIT IN PYTHON VERSION] [commit:abc1234] Add credential service\n"
         "```\n\n"
         
-        "**Step 2 - Check Eligibility:**\n"
+        "**Step 3 - Check Eligibility:**\n"
         "```\n"
         "Analyzing commit abc1234 eligibility...\n"
-        "Files changed: src/auth/service.py, tests/auth/test_service.py\n"
+        "Files changed: google/adk/auth/service.py, tests/auth/test_service.py\n"
         "[ELIGIBLE] ELIGIBLE: Core functionality, language-agnostic\n"
         "```\n\n"
         
-        "**Step 3 - Handle Based on Eligibility (Eligible):**\n"
+        "**Step 4 - Handle Based on Eligibility (Eligible):**\n"
         "```\n"
         "Commit is eligible for porting. Proceeding with translation workflow...\n"
         "```\n\n"
         
-        "**Step 4 - Create Branch:**\n"
+        "**Step 5 - Create Branch:**\n"
         "```\n"
         "Creating feature branch for commit abc1234...\n"
         "```\n"
@@ -102,7 +120,7 @@ root_agent = Agent(
         "[SUCCESS] Created branch: port-abc1234\n"
         "```\n\n"
         
-        "**Step 5 - Translate Code:**\n"
+        "**Step 6 - Translate Code:**\n"
         "```\n"
         "Calling CoderAgent to translate commit abc1234...\n"
         "```\n"
@@ -114,7 +132,7 @@ root_agent = Agent(
         "  - Build successful, tests passing\n"
         "```\n\n"
         
-        "**Step 6 - Submit Pull Request:**\n"
+        "**Step 7 - Submit Pull Request:**\n"
         "```\n"
         "Creating pull request for issue #45...\n"
         "```\n"
@@ -127,23 +145,35 @@ root_agent = Agent(
         "**EXAMPLE WORKFLOW - INELIGIBLE COMMIT:**\n"
         "User: 'Port commit def5678'\n\n"
         
-        "**Step 1 - Create Tracking Issue:**\n"
+        "**Step 1 - Get Commit Information:**\n"
+        "```\n"
+        "Analyzing commit def5678...\n"
+        "```\n"
+        "Tool: `get_commit_diff(username='google', repo='adk-python', commit_sha='def5678')`\n"
+        "```\n"
+        "[SUCCESS] Retrieved commit information:\n"
+        "  - Commit message: Update package dependencies\n"
+        "  - Files changed: requirements.txt, pyproject.toml\n"
+        "  - Total additions: 12, deletions: 8\n"
+        "```\n\n"
+        
+        "**Step 2 - Create Tracking Issue:**\n"
         "```\n"
         "Creating tracking issue for commit def5678...\n"
         "```\n"
-        "Tool: `create_issue(commit_sha='def5678')`\n"
+        "Tool: `create_issue(username='njraladdin', repo='adk-typescript', title='[NEW COMMIT IN PYTHON VERSION] [commit:def5678] Update package dependencies', body='...')`\n"
         "```\n"
         "[SUCCESS] Created issue #46: [NEW COMMIT IN PYTHON VERSION] [commit:def5678] Update package dependencies\n"
         "```\n\n"
         
-        "**Step 2 - Check Eligibility:**\n"
+        "**Step 3 - Check Eligibility:**\n"
         "```\n"
         "Analyzing commit def5678 eligibility...\n"
         "Files changed: requirements.txt, pyproject.toml\n"
         "[INELIGIBLE] INELIGIBLE: Python-specific package updates\n"
         "```\n\n"
         
-        "**Step 3 - Handle Based on Eligibility (Ineligible):**\n"
+        "**Step 4 - Handle Based on Eligibility (Ineligible):**\n"
         "```\n"
         "Commit is not eligible for porting. Closing issue with explanation.\n"
         "```\n"
@@ -161,6 +191,7 @@ root_agent = Agent(
         "- 'Close issue #46' -> Use `close_issue` only\n\n"
         
         "**TOOLS AVAILABLE:**\n"
+        "- `get_commit_diff`: Analyze commits and get detailed information about changes\n"
         "- `create_issue`: Create tracking issues for commits\n"
         "- `create_branch`: Create feature branches\n"
         "- `CoderAgent`: Translate Python code to TypeScript (sub-agent)\n"
@@ -192,7 +223,8 @@ root_agent = Agent(
         "**KEY PRINCIPLES:**\n"
         "- You will be given commit hashes directly by the user\n"
         "- Complete one full workflow per commit hash provided\n"
-        "- Always create issue first, then check eligibility\n"
+        "- Always get commit diff first to gather information before creating issues\n"
+        "- Use commit information to create detailed, informative tracking issues\n"
         "- Never skip the eligibility check - it prevents wasted effort\n"
         "- Only create branches and translate code for eligible commits\n"
         "- Always close ineligible issues with clear explanations\n"
@@ -201,6 +233,7 @@ root_agent = Agent(
         "- Provide clear status updates at each step"
     ),
     tools=[
+        get_commit_diff,
         create_issue,
         create_branch,
         coder_agent_tool,  # This handles all code translation and file operations
