@@ -113,11 +113,11 @@ root_agent = Agent(
         
         "**Step 5 - Create Branch:**\n"
         "```\n"
-        "Creating feature branch for commit abc1234...\n"
+        "Creating feature branch for issue #45...\n"
         "```\n"
-        "Tool: `create_branch(commit_sha='abc1234')`\n"
+        "Tool: `create_branch(username='njraladdin', repo='adk-typescript', issue_number=45)`\n"
         "```\n"
-        "[SUCCESS] Created branch: port-abc1234\n"
+        "[SUCCESS] Created branch: port-issue-45\n"
         "```\n\n"
         
         "**Step 6 - Translate Code:**\n"
@@ -130,6 +130,7 @@ root_agent = Agent(
         "  - Generated src/auth/Service.ts\n"
         "  - Generated tests/auth/Service.test.ts\n"
         "  - Build successful, tests passing\n"
+        "  - Changes committed and pushed to branch 'port-issue-45'\n"
         "```\n\n"
         
         "**Step 7 - Submit Pull Request:**\n"
@@ -185,7 +186,8 @@ root_agent = Agent(
         
         "**INDIVIDUAL OPERATIONS:**\n"
         "You can also handle specific requests:\n"
-        "- 'Create issue for commit abc123' -> Use `create_issue` only\n"
+        "- 'Create issue for commit abc123' -> Use `get_commit_diff` then `create_issue`\n"
+        "- 'Create branch for issue #45' -> Use `create_branch` with issue_number=45\n"
         "- 'Translate commit abc123' -> Use `CoderAgent` only (assumes eligibility already checked)\n"
         "- 'Submit PR for issue #45' -> Use `create_pull_request` only\n"
         "- 'Close issue #46' -> Use `close_issue` only\n\n"
@@ -193,7 +195,7 @@ root_agent = Agent(
         "**TOOLS AVAILABLE:**\n"
         "- `get_commit_diff`: Analyze commits and get detailed information about changes\n"
         "- `create_issue`: Create tracking issues for commits\n"
-        "- `create_branch`: Create feature branches\n"
+        "- `create_branch`: Create feature branches (supports both custom names and issue-based naming)\n"
         "- `CoderAgent`: Translate Python code to TypeScript (sub-agent)\n"
         "- `create_pull_request`: Submit pull requests\n"
         "- `close_issue`: Close issues with explanations\n\n"
