@@ -28,11 +28,13 @@ progress:
 - manage repo : create issue (and close), create branch, use coder agent, submit PR
 
 
-generating good code: reduce unnecessary python context, focused typescript context 
+-generating good code: reduce unnecessary python context, focused typescript context 
 
-limit number of tries for code writer. if stil lfail after all retries, delete issue 
+-limit number of tries for code writer. if stil lfail after all retries, delete issue 
 
-ability to fetch a another file in code translation agent 
+- ability to fetch another file in code translation agent 
+
+always start with fresh cloned repo 
 
 
 
