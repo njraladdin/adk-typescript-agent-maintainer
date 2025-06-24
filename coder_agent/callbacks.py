@@ -16,6 +16,8 @@ from .workspace_utils import (
     setup_typescript_repository_environment,
     check_workspace_setup_status
 )
+# Import git utilities for fresh repository setup
+from .git_utils import reset_repo_to_clean_state, pull_latest_changes
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
@@ -137,7 +139,11 @@ def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
 def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     """
     A before-agent callback that sets up the agent workspace with the TypeScript repository.
-    This function checks what steps have already been completed and only performs the necessary steps.
+    This function ensures we always start with a fresh, clean repository state by:
+    1. Resetting to main branch and cleaning any uncommitted changes if repo exists
+    2. Pulling latest changes from remote
+    3. Checking what setup steps have been completed and performing necessary steps
+    
     If any step in the setup process fails, it will print an error message and return.
     """
     print("CALLBACK: Setting up TypeScript repository workspace...")
@@ -146,19 +152,34 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     workspace_path = create_workspace_directory()
     typescript_repo_path = workspace_path / TYPESCRIPT_REPO_DIR
     
-    # Check the status of each setup step
-    setup_status = check_workspace_setup_status(workspace_path)
-    
-    # Step 1: Clone the repository if not already cloned
-    if not setup_status["repo_cloned"]:
-        print("CALLBACK: Repository not cloned. Cloning now...")
+    # Step 1: Handle repository cloning or reset to fresh state
+    if typescript_repo_path.exists() and (typescript_repo_path / ".git").exists():
+        print("CALLBACK: Repository already exists. Resetting to fresh state...")
+        
+        # Reset to clean state (main branch, no uncommitted changes, no untracked files)
+        reset_success, reset_message = reset_repo_to_clean_state(typescript_repo_path, target_branch="main")
+        if not reset_success:
+            print(f"CALLBACK ERROR: Failed to reset repository to clean state: {reset_message}")
+            return None
+        print(f"CALLBACK: ✓ {reset_message}")
+        
+        # Pull latest changes from remote
+        pull_success, pull_message = pull_latest_changes(typescript_repo_path, remote="origin", branch="main")
+        if not pull_success:
+            print(f"CALLBACK ERROR: Failed to pull latest changes: {pull_message}")
+            return None
+        print(f"CALLBACK: ✓ {pull_message}")
+        
+    else:
+        print("CALLBACK: Repository not found. Cloning fresh repository...")
         clone_success, clone_message = clone_repo(TYPESCRIPT_REPO_URL, typescript_repo_path)
         if not clone_success:
             print(f"CALLBACK ERROR: Repository setup failed: {clone_message}")
             return None
         print(f"CALLBACK: ✓ {clone_message}")
-    else:
-        print("CALLBACK: ✓ Repository already cloned")
+    
+    # Check the status of remaining setup steps
+    setup_status = check_workspace_setup_status(workspace_path)
     
     # Step 2: Install dependencies if not already installed
     if not setup_status["dependencies_installed"]:
@@ -203,10 +224,7 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     else:
         print("CALLBACK: ✓ Environment already set up")
     
-    if setup_status["all_steps_completed"]:
-        print("CALLBACK: All setup steps were already completed")
-    else:
-        print("CALLBACK: TypeScript repository setup completed successfully")
+    print("CALLBACK: TypeScript repository setup completed successfully with fresh state")
     
     # Store the repository path in the session state
     callback_context.state['typescript_repo_path'] = str(typescript_repo_path.absolute())

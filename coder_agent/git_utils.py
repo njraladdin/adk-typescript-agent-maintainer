@@ -289,12 +289,12 @@ def commit_changes(
 
 def push_changes(repo_path: Path, branch_name: str, remote: str = "origin") -> Tuple[bool, str]:
     """
-    Push committed changes to a remote repository.
+    Push changes to a remote repository.
     
     Args:
         repo_path: Path to the git repository
-        branch_name: The name of the branch to push
-        remote: The name of the remote (default: "origin")
+        branch_name: Name of the branch to push
+        remote: Name of the remote to push to (default: "origin")
         
     Returns:
         Tuple[bool, str]: (success, message)
@@ -305,7 +305,7 @@ def push_changes(repo_path: Path, branch_name: str, remote: str = "origin") -> T
         return False, f"No git repository found at {repo_path}"
     
     try:
-        push_result = subprocess.run(
+        subprocess.run(
             ["git", "push", remote, branch_name],
             cwd=str(repo_path),
             capture_output=True,
@@ -314,8 +314,104 @@ def push_changes(repo_path: Path, branch_name: str, remote: str = "origin") -> T
             shell=is_windows
         )
         
-        return True, f"Pushed to {remote}/{branch_name}: {push_result.stdout.strip()}"
+        return True, f"Successfully pushed branch '{branch_name}' to {remote}"
+        
     except subprocess.CalledProcessError as e:
-        return False, f"Failed to push changes: {e.stderr}"
+        error_msg = f"Failed to push changes: {e.returncode}"
+        if e.stderr:
+            error_msg += f"\nError details: {e.stderr}"
+        return False, error_msg
     except Exception as e:
-        return False, f"Unexpected error pushing changes: {e}" 
+        return False, f"Unexpected error during push: {e}"
+
+def reset_repo_to_clean_state(repo_path: Path, target_branch: str = "main") -> Tuple[bool, str]:
+    """
+    Reset a git repository to a clean state by:
+    1. Switching to the target branch (default: main)
+    2. Resetting all uncommitted changes (git reset --hard)
+    3. Cleaning all untracked files (git clean -fd)
+    
+    Args:
+        repo_path: Path to the git repository
+        target_branch: Branch to switch to before cleaning (default: "main")
+        
+    Returns:
+        Tuple[bool, str]: (success, message)
+    """
+    is_windows = is_windows_platform()
+    
+    if not (repo_path / ".git").exists():
+        return False, f"No git repository found at {repo_path}"
+    
+    try:
+        # Step 1: Switch to target branch
+        switch_success, switch_msg = switch_branch(repo_path, target_branch, create_if_not_exists=False)
+        if not switch_success:
+            return False, f"Failed to switch to branch '{target_branch}': {switch_msg}"
+        
+        # Step 2: Reset any uncommitted changes
+        subprocess.run(
+            ["git", "reset", "--hard", "HEAD"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            shell=is_windows
+        )
+        
+        # Step 3: Clean untracked files and directories
+        subprocess.run(
+            ["git", "clean", "-fd"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            shell=is_windows
+        )
+        
+        return True, f"Repository reset to clean state on branch '{target_branch}'"
+        
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Failed to reset repository to clean state: {e.returncode}"
+        if e.stderr:
+            error_msg += f"\nError details: {e.stderr}"
+        return False, error_msg
+    except Exception as e:
+        return False, f"Unexpected error during repository reset: {e}"
+
+def pull_latest_changes(repo_path: Path, remote: str = "origin", branch: str = "main") -> Tuple[bool, str]:
+    """
+    Pull the latest changes from a remote repository.
+    
+    Args:
+        repo_path: Path to the git repository
+        remote: Name of the remote to pull from (default: "origin")
+        branch: Name of the branch to pull (default: "main")
+        
+    Returns:
+        Tuple[bool, str]: (success, message)
+    """
+    is_windows = is_windows_platform()
+    
+    if not (repo_path / ".git").exists():
+        return False, f"No git repository found at {repo_path}"
+    
+    try:
+        subprocess.run(
+            ["git", "pull", remote, branch],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            shell=is_windows
+        )
+        
+        return True, f"Successfully pulled latest changes from {remote}/{branch}"
+        
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Failed to pull changes: {e.returncode}"
+        if e.stderr:
+            error_msg += f"\nError details: {e.stderr}"
+        return False, error_msg
+    except Exception as e:
+        return False, f"Unexpected error during pull: {e}" 
