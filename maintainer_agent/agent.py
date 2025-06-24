@@ -4,6 +4,9 @@ import sys
 # Add parent directory to Python path to allow imports from utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from typing import Dict, List, Optional
+from pydantic import BaseModel, Field
+
 from google.adk.agents import Agent
 from google.adk.tools import agent_tool
 
@@ -21,9 +24,25 @@ from coder_agent.agent import root_agent as coder_agent
 # Convert coder agent to a tool
 coder_agent_tool = agent_tool.AgentTool(agent=coder_agent)
 
+# ==============================================================================
+# DEFINE THE INPUT SCHEMA
+# ==============================================================================
+
+class MaintainerAgentInput(BaseModel):
+    """Input model for the MaintainerAgent tool."""
+    commit_id: str = Field(description="The full SHA of the commit to be ported from Python to TypeScript.")
+
+# ==============================================================================
+# DEFINE THE MAINTAINER AGENT
+# ==============================================================================
+
 root_agent = Agent(
     name="adk_typescript_maintainer",
     model="gemini-2.5-flash",
+    
+    # Add the input schema for proper tool integration
+    input_schema=MaintainerAgentInput,
+    
     description=(
         "Main coordinator for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
         "Handles the complete workflow: creating issues and branches, using the coder agent for translation, "

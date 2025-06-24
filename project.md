@@ -28,17 +28,19 @@ progress:
 - manage repo : create issue (and close), create branch, use coder agent, submit PR
 
 
--generating good code: reduce unnecessary python context, focused typescript context 
+- generating good code: reduce unnecessary python context, focused typescript context 
 
--limit number of tries for code writer. if stil lfail after all retries, delete issue 
+- limit number of tries for code writer. if stil lfail after all retries, delete issue 
 
 - ability to fetch another file in code translation agent 
 
-always start with fresh cloned repo 
+- always start with fresh cloned repo 
 
 
 
-monitor commits: monitor newest commits, check if they were processed yet or not, send them to agent 
+monitor commits: monitor newest commits, check if they were processed yet or not, send them to agent. use sqlite db to track processed commits and retries 
+
+ui agent progress: display steps taken by agent on a web ui
 
 
 
