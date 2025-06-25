@@ -29,20 +29,19 @@ progress:
 
 
 - generating good code: reduce unnecessary python context, focused typescript context 
-
 - limit number of tries for code writer. if stil lfail after all retries, delete issue 
-
 - ability to fetch another file in code translation agent 
-
 - always start with fresh cloned repo 
 
 
 
-monitor commits: monitor newest commits, check if they were processed yet or not, send them to agent. use sqlite db to track processed commits and retries 
 
-ui agent progress: display steps taken by agent on a web ui
+ui agent: submit a single commit on a UI, display steps taken by agent on a web ui. list of commits in progress.
 
+troubleshoot: submit a few commits until it can port it perfectly 
 
+hosted : both agent and ui hosted on google cloud 
 
+automatic monitoring: ability to enable monitoring newest commits, check if they were processed yet or not, send them to agent. use sqlite db to track processed commits and retries 
 
-estimated finish : monday  
+estimated finish : tuesday  

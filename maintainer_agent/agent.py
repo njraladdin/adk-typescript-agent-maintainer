@@ -37,7 +37,7 @@ class MaintainerAgentInput(BaseModel):
 # ==============================================================================
 
 root_agent = Agent(
-    name="adk_typescript_maintainer",
+    name="maintainer_agent",
     model="gemini-2.5-flash",
     
     # Add the input schema for proper tool integration
@@ -62,7 +62,7 @@ root_agent = Agent(
         "   - **If INELIGIBLE:** Close the issue with a clear explanation\n"
         "   - **If ELIGIBLE:** Continue with the porting process:\n"
         "     - Create a feature branch for the work\n"
-        "     - Use the CoderAgent to translate the Python code to TypeScript\n"
+        "     - Use the CodePorterCoordinator to translate the Python code to TypeScript\n"
         "     - Create a pull request that references the original tracking issue\n\n"
         
         "This approach ensures proper tracking, avoids wasted effort on non-portable commits, and maintains a clear audit trail.\n\n"
@@ -89,15 +89,15 @@ root_agent = Agent(
         "   - Use `create_branch` to create feature branch\n\n"
         
         "6. **Translate Code** (only if eligible):\n"
-        "   - Use `CoderAgent` tool to translate the Python code to TypeScript\n"
-        "   - The CoderAgent has 5 retries to successfully complete the translation\n"
-        "   - If CoderAgent fails after 5 retries, it will return a failure status\n\n"
+        "   - Use `CodePorterCoordinator` tool to translate the Python code to TypeScript\n"
+        "   - The CodePorterCoordinator has 5 retries to successfully complete the translation\n"
+        "   - If CodePorterCoordinator fails after 5 retries, it will return a failure status\n\n"
         
         "7. **Handle Translation Result:**\n"
-        "   - **If CoderAgent succeeds:** Continue to step 8 (Submit Pull Request)\n"
-        "   - **If CoderAgent fails:** Use `delete_issue` to delete the tracking issue with failure reason\n\n"
+        "   - **If CodePorterCoordinator succeeds:** Continue to step 8 (Submit Pull Request)\n"
+        "   - **If CodePorterCoordinator fails:** Use `delete_issue` to delete the tracking issue with failure reason\n\n"
         
-        "8. **Submit Pull Request** (only if CoderAgent succeeds):\n"
+        "8. **Submit Pull Request** (only if CodePorterCoordinator succeeds):\n"
         "   - Use `create_pull_request` to submit the translated code\n"
         "   - Link PR to the original tracking issue\n\n"
         
@@ -148,11 +148,11 @@ root_agent = Agent(
         
         "**Step 6 - Translate Code:**\n"
         "```\n"
-        "Calling CoderAgent to translate commit abc1234...\n"
+        "Calling CodePorterCoordinator to translate commit abc1234...\n"
         "```\n"
-        "Tool: `CoderAgent(commit_id='abc1234')`\n"
+        "Tool: `CodePorterCoordinator(commit_id='abc1234')`\n"
         "```\n"
-        "[SUCCESS] CoderAgent completed successfully\n"
+        "[SUCCESS] CodePorterCoordinator completed successfully\n"
         "  - Generated src/auth/Service.ts\n"
         "  - Generated tests/auth/Service.test.ts\n"
         "  - Build successful, tests passing\n"
@@ -162,15 +162,15 @@ root_agent = Agent(
         
         "**Step 7 - Handle Translation Result (Success):**\n"
         "```\n"
-        "CoderAgent completed successfully. Proceeding to create pull request...\n"
+        "CodePorterCoordinator completed successfully. Proceeding to create pull request...\n"
         "```\n\n"
         
         "**Step 8 - Submit Pull Request:**\n"
         "```\n"
         "Creating pull request for issue #45...\n"
-        "Using CoderAgent's comprehensive summary as PR body...\n"
+        "Using CodePorterCoordinator's comprehensive summary as PR body...\n"
         "```\n"
-        "Tool: `create_pull_request(username='njraladdin', repo='adk-typescript', title='Port credential service from Python ADK commit abc1234', body='[Use the detailed summary provided by CoderAgent]', head_branch='port-abc1234', base_branch='main', issue_number=45)`\n"
+        "Tool: `create_pull_request(username='njraladdin', repo='adk-typescript', title='Port credential service from Python ADK commit abc1234', body='[Use the detailed summary provided by CodePorterCoordinator]', head_branch='port-abc1234', base_branch='main', issue_number=45)`\n"
         "```\n"
         "[SUCCESS] Created PR #12: Port credential service from Python ADK commit abc1234\n"
         "[SUCCESS] PR linked to issue #45\n"
@@ -226,11 +226,11 @@ root_agent = Agent(
         
         "**Step 6 - Translate Code (Failure):**\n"
         "```\n"
-        "Calling CoderAgent to translate commit ghi9012...\n"
+        "Calling CodePorterCoordinator to translate commit ghi9012...\n"
         "```\n"
-        "Tool: `CoderAgent(commit_id='ghi9012')`\n"
+        "Tool: `CodePorterCoordinator(commit_id='ghi9012')`\n"
         "```\n"
-        "[FAILED] CoderAgent failed after 5 retries\n"
+        "[FAILED] CodePorterCoordinator failed after 5 retries\n"
         "  - Retry 1: TypeScript compilation error - undefined interface\n"
         "  - Retry 2: Build failed - module resolution issues\n"
         "  - Retry 3: Tests failed - async/await incompatibility\n"
@@ -242,9 +242,9 @@ root_agent = Agent(
         
         "**Step 7 - Handle Translation Result (Failure):**\n"
         "```\n"
-        "CoderAgent failed after 5 retries. Deleting tracking issue...\n"
+        "CodePorterCoordinator failed after 5 retries. Deleting tracking issue...\n"
         "```\n"
-        "Tool: `delete_issue(username='njraladdin', repo='adk-typescript', issue_number=47, reason='CoderAgent failed after 5 retries: Complex async patterns difficult to port directly')`\n"
+        "Tool: `delete_issue(username='njraladdin', repo='adk-typescript', issue_number=47, reason='CodePorterCoordinator failed after 5 retries: Complex async patterns difficult to port directly')`\n"
         "```\n"
         "[SUCCESS] Deleted issue #47 with failure explanation\n"
         "[SUCCESS] Workflow complete (manual intervention may be required)\n"
@@ -254,7 +254,7 @@ root_agent = Agent(
         "You can also handle specific requests:\n"
         "- 'Create issue for commit abc123' -> Use `get_commit_diff` then `create_issue`\n"
         "- 'Create branch for issue #45' -> Use `create_branch` with issue_number=45\n"
-        "- 'Translate commit abc123' -> Use `CoderAgent` only (assumes eligibility already checked)\n"
+        "- 'Translate commit abc123' -> Use `CodePorterCoordinator` only (assumes eligibility already checked)\n"
         "- 'Submit PR for issue #45' -> Use `create_pull_request` only\n"
         "- 'Close issue #46' -> Use `close_issue` only\n\n"
         
@@ -262,10 +262,10 @@ root_agent = Agent(
         "- `get_commit_diff`: Analyze commits and get detailed information about changes\n"
         "- `create_issue`: Create tracking issues for commits\n"
         "- `create_branch`: Create feature branches (supports both custom names and issue-based naming)\n"
-        "- `CoderAgent`: Translate Python code to TypeScript (sub-agent with 5-retry system and comprehensive PR-ready summary)\n"
+        "- `CodePorterCoordinator`: Translate Python code to TypeScript (sub-agent with 5-retry system and comprehensive PR-ready summary)\n"
         "- `create_pull_request`: Submit pull requests with issue linking\n"
         "- `close_issue`: Close issues with explanations\n"
-        "- `delete_issue`: Delete issues when CoderAgent fails (adds explanation comment and closes)\n\n"
+        "- `delete_issue`: Delete issues when CodePorterCoordinator fails (adds explanation comment and closes)\n\n"
         
         "**ELIGIBILITY CRITERIA:**\n"
         "[INELIGIBLE] **Ineligible commits:**\n"
@@ -290,10 +290,10 @@ root_agent = Agent(
         "- Provide tracking for the porting effort\n\n"
         
         "**PULL REQUEST CREATION:**\n"
-        "When creating pull requests after CoderAgent completes:\n"
+        "When creating pull requests after CodePorterCoordinator completes:\n"
         "- **Title**: 'Port [feature/fix description] from Python ADK commit <7-char-sha>'\n"
-        "- **Body**: Use the comprehensive summary provided by CoderAgent (it's in PR-ready format)\n"
-        "- **Head Branch**: Use the branch name from CoderAgent's summary (usually 'port-<commit_sha>')\n"
+        "- **Body**: Use the comprehensive summary provided by CodePorterCoordinator (it's in PR-ready format)\n"
+        "- **Head Branch**: Use the branch name from CodePorterCoordinator's summary (usually 'port-<commit_sha>')\n"
         "- **Base Branch**: 'main'\n"
         "- **Issue Number**: Use the issue number you created in step 2 for linking\n"
         "- The tool will automatically append 'Related to #<issue_number>' to link the PR to the issue\n\n"
@@ -306,9 +306,9 @@ root_agent = Agent(
         "- Never skip the eligibility check - it prevents wasted effort\n"
         "- Only create branches and translate code for eligible commits\n"
         "- Always close ineligible issues with clear explanations\n"
-        "- Use CoderAgent for all code translation work (it has 5-retry system and handles all file operations)\n"
-        "- If CoderAgent fails after 5 retries, delete the tracking issue instead of creating PR\n"
-        "- If CoderAgent succeeds, link PRs to original tracking issues for audit trail\n"
+        "- Use CodePorterCoordinator for all code translation work (it has 5-retry system and handles all file operations)\n"
+        "- If CodePorterCoordinator fails after 5 retries, delete the tracking issue instead of creating PR\n"
+        "- If CodePorterCoordinator succeeds, link PRs to original tracking issues for audit trail\n"
         "- Provide clear status updates at each step\n"
         "- Handle both success and failure scenarios appropriately"
     ),
