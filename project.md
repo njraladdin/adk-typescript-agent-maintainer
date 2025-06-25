@@ -35,13 +35,14 @@ progress:
 
 
 
+- ui agent: submit a single commit on a UI, display steps taken by agent on a web ui.
 
-ui agent: submit a single commit on a UI, display steps taken by agent on a web ui. list of commits in progress.
 
 troubleshoot: submit a few commits until it can port it perfectly 
 
+multi commits: in the ui, display list of commits in progress, and show exectution trace of each one 
+
 hosted : both agent and ui hosted on google cloud 
 
-automatic monitoring: ability to enable monitoring newest commits, check if they were processed yet or not, send them to agent. use sqlite db to track processed commits and retries 
+automatic monitoring: automatically monitor newest commits, send them to agent
 
-estimated finish : tuesday  

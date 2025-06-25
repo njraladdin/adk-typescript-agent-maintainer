@@ -157,7 +157,7 @@ context_gatherer_agent = Agent(
 code_translator_agent = Agent(
     name="CodeTranslator",
     model="gemini-2.5-flash",
-    tools=[get_file_content, write_local_file, build_typescript_project, run_typescript_tests, commit_and_push_changes],
+    tools=[write_local_file, build_typescript_project, run_typescript_tests, commit_and_push_changes],
     before_agent_callback=load_gathered_context,
     
     instruction="""
@@ -207,16 +207,13 @@ code_translator_agent = Agent(
         
     **YOUR TASK STEPS**
 
-    All necessary context has been gathered and loaded into the session state from a JSON file. You must:
+    All necessary context has been gathered and loaded into the session state from a JSON file. You must work with ONLY the provided context. You must:
 
     1. **ANALYZE:** Thoroughly analyze the Python changes and TypeScript codebase:
        - Study the commit diff to understand exactly what changed in the Python code
        - Identify the equivalent TypeScript file locations for each changed Python file
        - Review existing TypeScript code to understand patterns and conventions
        - Plan your translation approach to maintain consistency with the TypeScript codebase
-       - **FETCH MISSING FILES:** If during your analysis or translation you discover that you need additional files that the context gatherer missed, use the `get_file_content` tool to fetch them:
-         - For Python files: `get_file_content(repo='google/adk-python', file_path='path/to/file.py')`
-         - For TypeScript files: `get_file_content(repo='njraladdin/adk-typescript', file_path='path/to/file.ts')`
 
     2. **TRANSLATE AND WRITE:**
        - For each file in the "Changed files" list, find its TypeScript equivalent using the mapping rules below
@@ -300,23 +297,6 @@ code_translator_agent = Agent(
 
     explain to the user your plan.
 
-    **Step 1b - FETCH MISSING FILES (Tool Call - if needed):**
-    "During analysis, I realize I need to see how event_count is initialized in the Python file to properly implement it in TypeScript. The context gatherer didn't include the full BaseAgent class, so I'll fetch it:"
-    ```python
-    get_file_content(
-        repo="google/adk-python",
-        file_path="google/adk/agents/base_agent.py"
-    )
-    ```
-    
-    "I also need to check if there's a TypeScript interface for event handling that I should be aware of:"
-    ```python
-    get_file_content(
-        repo="njraladdin/adk-typescript", 
-        file_path="src/interfaces/IEvent.ts"
-    )
-    ```
-but this is rarely needed, usually the provided context is enough.
     **Step 2 - TRANSLATE AND WRITE (Tool Call):**
     ```python
     write_local_file(
