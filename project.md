@@ -26,21 +26,25 @@ progress:
 - use vertex: use vertex gemini api with credits instead of free aistudio api 
 - validate: update files, build project, run tests and iterate  
 - manage repo : create issue (and close), create branch, use coder agent, submit PR
-
-
 - generating good code: reduce unnecessary python context, focused typescript context 
 - limit number of tries for code writer. if stil lfail after all retries, delete issue 
 - ability to fetch another file in code translation agent 
 - always start with fresh cloned repo 
-
-
-
 - ui agent: submit a single commit on a UI, display steps taken by agent on a web ui.
 
 
-troubleshoot: submit a few commits until it can port it perfectly 
+focused and simpler : make everything more focused. a lot of stuff here doesn't need to be part of agent, just simple workflow to run before or after the agent 
 
-multi commits: in the ui, display list of commits in progress, and show exectution trace of each one 
+        the context agent doesnt need to fetch the repos structures and commit information and get file content of each changed file.  should be a before agent callback. main goal is to decide which relevant typescirpt fiels to fetch based on repo file sturctures and commit diff and updated files 
+
+        make it able to fetch more files at once, saves time for faster testing OR feed all files to gemini flash lite and output list of relevant files 
+
+        for maintainer agent, most steps doesnt require an agent, but simple flow in before agent callback (or a single function by the agent). simplify.
+
+        after simplifying the 3 agents in project, see what can be merged while staying easily testable 
+
+
+troubleshoot: submit a few commits until it can port it perfectly:
 
 hosted : both agent and ui hosted on google cloud 
 
