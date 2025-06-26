@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from google.adk.tools import ToolContext
-from ..git_api_utils import create_issue as api_create_issue
+from ..github_api_utils import create_issue as api_create_issue
 
 def create_issue(
     username: str,

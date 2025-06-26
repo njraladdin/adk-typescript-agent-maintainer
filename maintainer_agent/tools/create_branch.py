@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from google.adk.tools import ToolContext
-from ..git_api_utils import create_branch as api_create_branch, branch_exists as api_branch_exists
+from ..github_api_utils import create_branch as api_create_branch, branch_exists as api_branch_exists
 
 def create_branch(
     username: str,

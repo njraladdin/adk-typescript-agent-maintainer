@@ -18,7 +18,7 @@ from .workspace_utils import (
 )
 # Import git utilities for fresh repository setup
 from .git_cli_utils import reset_repo_to_clean_state, pull_latest_changes
-from .git_api_utils import fetch_commit_diff_data, fetch_repo_structure, fetch_file_content
+from .github_api_utils import fetch_commit_diff_data, fetch_repo_structure, fetch_file_content
 
 def gather_commit_context(callback_context: CallbackContext) -> Optional[Any]:
     """

@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from google.adk.tools import ToolContext
-from ..git_api_utils import create_pull_request as api_create_pull_request, pull_request_exists as api_pull_request_exists
+from ..github_api_utils import create_pull_request as api_create_pull_request, pull_request_exists as api_pull_request_exists
 
 def create_pull_request(
     username: str,

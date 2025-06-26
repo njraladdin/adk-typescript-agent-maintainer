@@ -1,8 +1,10 @@
 from typing import Optional, Dict, Any
 from google.adk.tools import ToolContext
-from ..git_api_utils import fetch_file_content, get_github_token
+from requests.exceptions import RequestException
+from ..github_api_utils import fetch_file_content, get_github_token
 
 GATHERED_CONTEXT_KEY = "gathered_context"
+TOKEN_CACHE_KEY = "github_token"
 
 def get_file_content(
     repo: str,
