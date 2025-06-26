@@ -22,7 +22,6 @@ from .tools.commit_and_push_changes import commit_and_push_changes
 # --- Maintainer Agent Tool Imports ---
 from .tools.setup_commit_port import setup_commit_port
 from .tools.close_issue import close_issue
-from .tools.delete_issue import delete_issue
 from .tools.create_pull_request import create_pull_request
 
 # --- Callback Imports ---
@@ -350,7 +349,7 @@ maintainer_agent = Agent(
         
         "1. **Setup Infrastructure** - Analyze commit, create tracking issue, and create feature branch (all in one step)\n"
         "2. **Translate Code** - Use the coder_agent to translate the Python code to TypeScript\n"
-        "3. **Handle Result** - Create PR if successful, or delete issue if failed\n\n"
+        "3. **Handle Result** - Create PR if successful, or add a comment to the issue if failed\n\n"
         
         "This approach ensures proper tracking and maintains a clear audit trail.\n\n"
                 
@@ -370,7 +369,7 @@ maintainer_agent = Agent(
         
         "3. **Handle Translation Result**:\n"
         "   - **If coder_agent succeeds:** Continue to step 4 (Submit Pull Request)\n"
-        "   - **If coder_agent fails:** Use `delete_issue` to delete the tracking issue with failure reason\n\n"
+        "   - **If coder_agent fails:** Add a comment to the issue with the failure reason, leaving it open for manual intervention\n\n"
         
         "4. **Submit Pull Request** (only if coder_agent succeeds):\n"
         "   - Use `create_pull_request` to submit the translated code\n"
@@ -446,12 +445,12 @@ maintainer_agent = Agent(
         
         "**Step 3 - Handle Translation Result (Failure):**\n"
         "```\n"
-        "coder_agent failed after 5 retries. Deleting tracking issue...\n"
+        "coder_agent failed after 5 retries. Adding comment to the issue...\n"
         "```\n"
-        "Tool: `delete_issue(username='njraladdin', repo='adk-typescript', issue_number=47, reason='coder_agent failed after 5 retries: Complex async patterns difficult to port directly')`\n"
+        "Tool: `close_issue(username='njraladdin', repo='adk-typescript', issue_number=47, comment='[AUTOMATED NOTIFICATION] coder_agent failed after 5 retries: Complex async patterns difficult to port directly. Manual intervention required.')`\n"
         "```\n"
-        "[SUCCESS] Deleted issue #47 with failure explanation\n"
-        "[SUCCESS] Workflow complete (manual intervention may be required)\n"
+        "[SUCCESS] Added comment to issue #47\n"
+        "[SUCCESS] Workflow complete (manual intervention required)\n"
         "```\n\n"
         
         "**INDIVIDUAL OPERATIONS:**\n"
@@ -465,8 +464,7 @@ maintainer_agent = Agent(
         "- `setup_commit_port`: Combined tool that analyzes commits, creates tracking issues, and creates feature branches\n"
         "- `coder_agent`: Translate Python code to TypeScript (sub-agent with 5-retry system and comprehensive PR-ready summary)\n"
         "- `create_pull_request`: Submit pull requests with issue linking\n"
-        "- `close_issue`: Close issues with explanations\n"
-        "- `delete_issue`: Delete issues when coder_agent fails (adds explanation comment and closes)\n\n"
+        "- `close_issue`: Close issues with explanations\n\n"
         
         "**PULL REQUEST CREATION:**\n"
         "When creating pull requests after coder_agent completes:\n"
@@ -483,7 +481,7 @@ maintainer_agent = Agent(
         "- Use `setup_commit_port` to handle all initial setup (commit analysis, issue creation, branch creation)\n"
         "- Issues and branches are created automatically based on commit information\n"
         "- Use coder_agent for all code translation work (it has 5-retry system and handles all file operations)\n"
-        "- If coder_agent fails after 5 retries, delete the tracking issue instead of creating PR\n"
+        "- If coder_agent fails after 5 retries, add a comment to the issue with the failure reason, leaving it open for manual intervention\n"
         "- If coder_agent succeeds, link PRs to original tracking issues for audit trail\n"
         "- Provide clear status updates at each step\n"
         "- Handle both success and failure scenarios appropriately"
@@ -493,7 +491,6 @@ maintainer_agent = Agent(
         coder_agent_tool,  # This handles all code translation and file operations
         create_pull_request,
         close_issue,
-        delete_issue,
     ],
 )
 
