@@ -36,7 +36,7 @@ progress:
 focused and simpler : make everything more focused. a lot of stuff here doesn't need to be part of agent, just simple workflow to run before or after the agent 
 
         simplfy agents by extracting workflows into callback functions 
-        
+
         the context agent doesnt need to fetch the repos structures and commit information and get file content of each changed file.  should be a before agent callback. main goal is to decide which relevant typescirpt fiels to fetch based on repo file sturctures and commit diff and updated files 
 
         make it able to fetch more files at once, saves time for faster testing OR feed all files to gemini flash lite and output list of relevant files 
@@ -51,4 +51,6 @@ troubleshoot: submit a few commits until it can port it perfectly:
 hosted : both agent and ui hosted on google cloud 
 
 automatic monitoring: automatically monitor newest commits, send them to agent
+
+tip: to build agent: do the process mnually, do it as a workflow then find which parts require agents and which parts 
 

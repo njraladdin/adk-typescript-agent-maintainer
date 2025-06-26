@@ -2,8 +2,8 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 from google.adk.tools import ToolContext
 
-# Import the individual git utility functions
-from ..git_utils import (
+# Import the individual git CLI utility functions
+from ..git_cli_utils import (
     switch_branch,
     get_changed_files,
     stage_changes,

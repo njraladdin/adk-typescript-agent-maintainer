@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 
 from .constants import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR, TYPESCRIPT_REPO_URL
-from .git_utils import clone_repo, is_windows_platform
+from .git_cli_utils import clone_repo, is_windows_platform
 
 
 def get_npm_command() -> str:

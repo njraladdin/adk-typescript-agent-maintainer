@@ -173,11 +173,6 @@ root_agent = Agent(
         "- `close_issue`: Close issues with explanations\n"
         "- `delete_issue`: Delete issues when coder_agent fails (adds explanation comment and closes)\n\n"
         
-        "**ISSUE FORMAT:**\n"
-        "Issues are automatically created by `setup_commit_port` with the following format:\n"
-        "- Title: '[NEW COMMIT IN PYTHON VERSION] [commit:<7-char-sha>] <commit-message>'\n"
-        "- Body includes commit overview, files changed, and change summary\n"
-        "- Provides tracking for the porting effort\n\n"
         
         "**PULL REQUEST CREATION:**\n"
         "When creating pull requests after coder_agent completes:\n"

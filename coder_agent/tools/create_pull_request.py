@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import requests
 from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
@@ -13,6 +13,8 @@ def create_pull_request(
     head_branch: str,
     base_branch: str = "main",
     issue_number: Optional[int] = None,
+    labels: Optional[List[str]] = None,
+    draft: bool = False,
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
@@ -22,17 +24,22 @@ def create_pull_request(
         username (str): GitHub username or organization name
         repo (str): GitHub repository name
         title (str): Pull request title
-        body (str): Pull request body/description
+        body (str): Pull request description
         head_branch (str): The name of the branch where your changes are implemented
         base_branch (str): The name of the branch you want the changes pulled into (default: 'main')
         issue_number (Optional[int]): Issue number to automatically link and close when PR is merged
+        labels (Optional[List[str]]): List of labels to apply to the pull request
+        draft (bool): Whether to create the pull request as a draft (default: False)
         tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         Dict[str, Any]: The created pull request data from GitHub API
+
+    Raises:
+        RequestException: If there's an error creating the pull request
     """
     # Log the start of the tool execution with main parameters
-    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head={head_branch} base={base_branch} issue={issue_number}")
+    print(f"[CREATE_PULL_REQUEST] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head_branch={head_branch} base_branch={base_branch} issue={issue_number} draft={draft}")
     
     # Add issue linking to body if issue_number is provided
     if issue_number:
@@ -60,9 +67,7 @@ def create_pull_request(
                 print(f"[CREATE_PULL_REQUEST] : output status=error, message={error_result['message']}")
                 return error_result
 
-        # Step 2: Make authenticated API call
         url = f"https://api.github.com/repos/{username}/{repo}/pulls"
-        
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {github_token}"
@@ -72,20 +77,33 @@ def create_pull_request(
             "title": title,
             "body": body,
             "head": head_branch,
-            "base": base_branch
+            "base": base_branch,
+            "draft": draft
         }
         
+        # Create the pull request
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
+        pr_data = response.json()
         
-        # Step 3: Return success response
-        result = response.json()
+        # Add labels if provided
+        if labels and len(labels) > 0:
+            labels_url = f"https://api.github.com/repos/{username}/{repo}/issues/{pr_data['number']}/labels"
+            labels_response = requests.post(labels_url, headers=headers, json=labels)
+            labels_response.raise_for_status()
+        
+        # Get the updated PR data
+        pr_url = pr_data["url"]
+        updated_response = requests.get(pr_url, headers=headers)
+        updated_response.raise_for_status()
+        
+        result = updated_response.json()
+        
         success_result = {
             "status": "success",
             "data": result,
             "html_url": result.get("html_url"),
-            "number": result.get("number"),
-            "pull_request_url": result.get("html_url")
+            "number": result.get("number")
         }
         
         # Log the success output
@@ -113,20 +131,20 @@ def pull_request_exists(
     tool_context: ToolContext = None
 ) -> bool:
     """
-    Checks if a pull request already exists for the given head and base branches.
+    Checks if a pull request already exists for the given branches.
 
     Args:
         username (str): GitHub username or organization name
         repo (str): GitHub repository name
         head_branch (str): The name of the branch where your changes are implemented
-        base_branch (str): The name of the branch you want the changes pulled into (default: 'main')
+        base_branch (str): The name of the branch you want the changes pulled into
         tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
         bool: True if a pull request exists, False otherwise
     """
     # Log the start of the tool execution with main parameters
-    print(f"[PULL_REQUEST_EXISTS] username={username} repo={repo} head={head_branch} base={base_branch}")
+    print(f"[PULL_REQUEST_EXISTS] username={username} repo={repo} head_branch={head_branch} base_branch={base_branch}")
     
     try:
         # Step 1: Check for cached token
@@ -161,8 +179,7 @@ def pull_request_exists(
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         
-        pulls = response.json()
-        exists = len(pulls) > 0
+        exists = len(response.json()) > 0
         
         # Log the output
         print(f"[PULL_REQUEST_EXISTS] : output exists={exists}")
@@ -180,37 +197,54 @@ def create_pull_request_if_not_exists(
     body: str,
     head_branch: str,
     base_branch: str = "main",
+    labels: Optional[List[str]] = None,
+    draft: bool = False,
     tool_context: ToolContext = None
 ) -> Dict[str, Any]:
     """
-    Creates a new pull request if one doesn't already exist for the given head and base branches.
+    Creates a new pull request if one doesn't already exist for the given branches.
 
     Args:
         username (str): GitHub username or organization name
         repo (str): GitHub repository name
         title (str): Pull request title
-        body (str): Pull request body/description
+        body (str): Pull request description
         head_branch (str): The name of the branch where your changes are implemented
         base_branch (str): The name of the branch you want the changes pulled into (default: 'main')
+        labels (Optional[List[str]]): List of labels to apply to the pull request
+        draft (bool): Whether to create the pull request as a draft (default: False)
         tool_context (ToolContext): Automatically injected by ADK for auth handling
 
     Returns:
-        Dict[str, Any]: The pull request data from GitHub API
+        Dict[str, Any]: The created pull request data from GitHub API
+
+    Raises:
+        ValueError: If a pull request already exists
+        RequestException: If there's an error checking or creating the pull request
     """
     # Log the start of the tool execution with main parameters
-    print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] username={username} repo={repo} head={head_branch} base={base_branch}")
+    print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}' head_branch={head_branch} base_branch={base_branch}")
     
     if not pull_request_exists(username, repo, head_branch, base_branch, tool_context):
-        result = create_pull_request(username, repo, title, body, head_branch, base_branch, tool_context)
+        result = create_pull_request(
+            username,
+            repo,
+            title,
+            body,
+            head_branch,
+            base_branch,
+            labels,
+            draft,
+            tool_context
+        )
         # Log the success output
-        print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] : output status=success, created new PR")
+        print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] : output status=success, created new pr_number={result.get('number')}")
         return result
     else:
-        error_msg = f"Pull request from '{head_branch}' to '{base_branch}' already exists"
+        error_msg = f"Pull request already exists for {head_branch} into {base_branch}"
         # Log the error output
         print(f"[CREATE_PULL_REQUEST_IF_NOT_EXISTS] : output status=error, message={error_msg}")
         return {'status': 'error', 'message': error_msg}
-
 
 if __name__ == "__main__":
     # Example usage
@@ -219,19 +253,12 @@ if __name__ == "__main__":
         test_repo = "test-repo"
         test_title = "Test Pull Request"
         test_body = "This is a test pull request created via the API"
-        test_head_branch = "feature/test-feature"
-        test_base_branch = "main"
+        test_head_branch = "feature/test-branch"
+        test_labels = ["test", "automated"]
         
         # Note: You would need to set your GitHub token as an environment variable
         import os
         github_token = os.getenv("GITHUB_TOKEN")
-        
-        # In real usage, tool_context would be provided by ADK
-        class MockToolContext:
-            def __init__(self):
-                self.state = {}
-        
-        mock_context = MockToolContext()
         
         result = create_pull_request_if_not_exists(
             test_username,
@@ -239,9 +266,11 @@ if __name__ == "__main__":
             test_title,
             test_body,
             test_head_branch,
-            test_base_branch,
-            mock_context
+            "main",
+            test_labels,
+            False,
+            None
         )
-        print(f"Created pull request: {result.get('html_url', 'N/A')}")
+        print("Created pull request:", result["html_url"])
     except Exception as error:
         print(f"Test failed: {error}") 
