@@ -35,6 +35,7 @@ progress:
 
 focused and simpler : make everything more focused. a lot of stuff here doesn't need to be part of agent, just simple workflow to run before or after the agent 
 
+        simplfy agents by extracting workflows into callback functions 
         the context agent doesnt need to fetch the repos structures and commit information and get file content of each changed file.  should be a before agent callback. main goal is to decide which relevant typescirpt fiels to fetch based on repo file sturctures and commit diff and updated files 
 
         make it able to fetch more files at once, saves time for faster testing OR feed all files to gemini flash lite and output list of relevant files 

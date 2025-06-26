@@ -222,9 +222,6 @@ code_translator_agent = Agent(
          - author_email: "noreply@github.com" (optional, uses git config if not provided)
        - This will stage all your changes, commit them, and push to the remote branch
 
-    5. **PROVIDE COMPREHENSIVE SUMMARY:** 
-       - Provide a detailed summary for the maintainer agent to use in the pull request. Include all relevant details that would help reviewers understand the changes and files updated / created.
-
     ---
     **EXAMPLE SCENARIO**
 
@@ -273,31 +270,6 @@ while maintaining all other existing code unchanged]'''
         author_email="noreply@github.com"
     )
     ```
-    
-    **Step 5 - PROVIDE COMPREHENSIVE SUMMARY (Text Output):**
-    
-    ## Summary
-    Ported logging improvements from Python ADK commit abc1234. This update changes the logging level for event processing from info to debug and adds event counting functionality to improve debugging capabilities while reducing log verbosity in production.
-    
-    ## Changes Made
-    **src/agents/BaseAgent.ts:**
-    - Changed `this.logger.info()` to `this.logger.debug()` in the `processEvent` method
-    - Added `this.eventCount += 1` to track the number of events processed
-    - Maintained all existing functionality while improving observability
-    
-    ## Files Modified
-    - `src/agents/BaseAgent.ts` - Updated logging level and added event counting
-    
-    ## Testing
-    - Build:  Successfully compiled TypeScript project
-    - Tests:  Ran BaseAgent.test.ts and agent.test.ts - all tests passed
-    
-    ## Original Commit
-    - Source: https://github.com/google/adk-python/commit/abc1234
-    - Branch: port-abc1234
-    
-    ## Notes
-    This change improves debugging capabilities by providing event count tracking while reducing log noise in production environments by moving event processing logs to debug level.
 
     """
 )
