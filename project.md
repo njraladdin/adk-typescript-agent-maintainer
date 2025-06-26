@@ -45,11 +45,12 @@ focused and simpler : make everything more focused. a lot of stuff here doesn't 
 
         after simplifying the 3 agents in project, see what can be merged while staying easily testable 
 
-todo: 
-- use coder agent htat uses context gatherer as a tool, and maintianer agent, so first make it so gatering context happens in a before agent callback instead of a tool it decides to use or not (because it should alwyas run before it)
-- make github stuff happen after porting in one block instead of some github stuff happeneing before we port nad some after we port the commit 
+TODO: 
+- make github stuff happen after porting in one block instead of some github stuff happeneing before we port nad some after we port the commit, done 
+- make it so the github stuff doesn't require agentic process, just simpel workflow (a tool) 
+
+
 - make file reading faster by reading files  from the cloned repo not from the api 
-- make it so we only have one agent. the github stuff doesn't require agentic abilities 
 
 
 troubleshoot: submit a few commits until it can port it perfectly:

@@ -20,11 +20,8 @@ from .tools.run_typescript_tests import run_typescript_tests
 from .tools.commit_and_push_changes import commit_and_push_changes
 
 # --- Maintainer Agent Tool Imports ---
-from .tools.setup_commit_port import setup_commit_port
-from .tools.close_issue import close_issue
-from .tools.create_pull_request import create_pull_request
-from .tools.create_issue import create_issue
-from .tools.create_branch import create_branch
+from .tools.publish_port_to_github import publish_port_to_github
+
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace, gather_commit_context
@@ -329,13 +326,13 @@ maintainer_agent = Agent(
         "You are the main coordinator for porting specific commits from the Python ADK repository "
         "to its TypeScript equivalent. You will be given a commit hash and handle the complete workflow.\n\n"
         
-        "**HIGH-LEVEL PROCESS OVERVIEW:**\n"
-        "The porting  now follows a clean separation between code work and GitHub operations:\n\n"
+        "**STREAMLINED WORKFLOW:**\n"
+        "The porting process now has only 2 main steps:\n\n"
         
         "1. **Code Translation** - Use the coder_agent to translate, build, and test the Python code to TypeScript\n"
-        "2. **GitHub Operations** - Only after successful translation, handle all GitHub operations in one block\n\n"
+        "2. **GitHub Publishing** - Use one consolidated tool to handle all GitHub operations\n\n"
         
-        "This approach ensures we don't create GitHub artifacts (issues, branches) unless the code actually works.\n\n"
+        "This approach ensures we don't create GitHub artifacts unless the code actually works.\n\n"
                 
         "**COMPLETE WORKFLOW:**\n"
         "Given a commit hash (e.g., 'abc1234'), you will:\n\n"
@@ -346,13 +343,16 @@ maintainer_agent = Agent(
         "   - The coder_agent will NOT commit or push - it only does code work\n"
         "   - If coder_agent fails, stop here (no GitHub operations needed)\n\n"
         
-        "2. **GitHub Operations Block** (only if coder_agent succeeds):\n"
-        "   - Create tracking issue with detailed commit information\n"
-        "   - Create feature branch for the porting work\n"
-        "   - Commit and push the translated code\n"
-        "   - Create pull request linking to the issue\n\n"
+        "2. **Publish to GitHub** (only if coder_agent succeeds):\n"
+        "   - Use `publish_port_to_github` with the commit SHA\n"
+        "   - This single tool will automatically:\n"
+        "     • Fetch commit information for titles and descriptions\n"
+        "     • Create tracking issue with commit details\n"
+        "     • Create feature branch (port-<7-char-sha>)\n"
+        "     • Commit and push the translated code\n"
+        "     • Create pull request linking to the issue\n\n"
         
-        "**EXAMPLE FULL WORKFLOW:**\n"
+        "**EXAMPLE WORKFLOW:**\n"
         "User: 'Port commit abc1234'\n\n"
         
         "**Step 1 - Translate Code:**\n"
@@ -366,37 +366,21 @@ maintainer_agent = Agent(
         "  - Generated src/auth/Service.ts\n"
         "  - Generated tests/auth/Service.test.ts\n"
         "  - Build successful, tests passing\n"
-        "  - Code is ready for GitHub operations\n"
+        "  - Code is ready for GitHub publishing\n"
         "```\n\n"
         
-        "**Step 2 - GitHub Operations Block:**\n"
+        "**Step 2 - Publish to GitHub:**\n"
         "```\n"
-        "Code translation successful! Now handling GitHub operations...\n"
-        "```\n\n"
-        
-        "**2a - Create Issue:**\n"
-        "Tool: `create_issue(username='njraladdin', repo='adk-typescript', title='[NEW COMMIT IN PYTHON VERSION] [commit:abc1234] Add credential service', body='[Detailed commit information]')`\n"
+        "Code translation successful! Publishing to GitHub...\n"
         "```\n"
-        "[SUCCESS] Created issue #45: Add credential service\n"
-        "```\n\n"
-        
-        "**2b - Create Branch:**\n"
-        "Tool: `create_branch(username='njraladdin', repo='adk-typescript', branch_name='port-abc1234', base_branch='main')`\n"
+        "Tool: `publish_port_to_github(commit_sha='abc1234')`\n"
         "```\n"
-        "[SUCCESS] Created branch: port-abc1234\n"
-        "```\n\n"
-        
-        "**2c - Commit and Push:**\n"
-        "Tool: `commit_and_push_changes(commit_message='Port credential service from Python ADK commit abc1234', branch_name='port-abc1234', author_name='ADK TypeScript Porter', author_email='noreply@github.com')`\n"
-        "```\n"
-        "[SUCCESS] Changes committed and pushed to branch 'port-abc1234'\n"
-        "```\n\n"
-        
-        "**2d - Create Pull Request:**\n"
-        "Tool: `create_pull_request(username='njraladdin', repo='adk-typescript', title='Port credential service from Python ADK commit abc1234', body='[Use coder_agent summary as PR body]', head_branch='port-abc1234', base_branch='main', issue_number=45)`\n"
-        "```\n"
-        "[SUCCESS] Created PR #12: Port credential service from Python ADK commit abc1234\n"
-        "[SUCCESS] PR linked to issue #45\n"
+        "[SUCCESS] Published port to GitHub successfully\n"
+        "  - Created issue #45: [NEW COMMIT IN PYTHON VERSION] [commit:abc1234] Add credential service\n"
+        "  - Created branch: port-abc1234\n"
+        "  - Committed and pushed changes\n"
+        "  - Created PR #12: Port credential service from Python ADK commit abc1234\n"
+        "  - PR linked to issue #45\n"
         "[SUCCESS] Workflow complete!\n"
         "```\n\n"
         
@@ -422,62 +406,23 @@ maintainer_agent = Agent(
         "Workflow stopped - no artifacts created.\n"
         "```\n\n"
         
-        "**INDIVIDUAL OPERATIONS:**\n"
-        "You can also handle specific requests:\n"
-        "- 'Translate commit abc123' -> Use `coder_agent` only\n"
-        "- 'Create issue for commit abc123' -> Use `create_issue` with commit info\n"
-        "- 'Create branch for commit abc123' -> Use `create_branch` with 'port-abc123' name\n"
-        "- 'Submit PR for branch port-abc123' -> Use `create_pull_request`\n"
-        "- 'Close issue #46' -> Use `close_issue`\n\n"
-        
         "**TOOLS AVAILABLE:**\n"
         "- `coder_agent`: Translate Python code to TypeScript (context gathering, translation, build, test)\n"
-        "- `create_issue`: Create tracking issues with commit information\n"
-        "- `create_branch`: Create feature branches for porting work\n"
-        "- `commit_and_push_changes`: Commit and push translated code to remote branches\n"
-        "- `create_pull_request`: Submit pull requests with issue linking\n"
-        "- `close_issue`: Close issues with explanations\n\n"
-        
-        "**GITHUB OPERATIONS DETAILS:**\n"
-        "When creating GitHub artifacts after successful code translation:\n\n"
-        
-        "**Issue Creation:**\n"
-        "- **Title**: '[NEW COMMIT IN PYTHON VERSION] [commit:<7-char-sha>] <brief description>'\n"
-        "- **Body**: Include commit SHA, diff summary, and changed files list\n\n"
-        
-        "**Branch Creation:**\n"
-        "- **Name**: 'port-<7-char-commit-sha>'\n"
-        "- **Base**: 'main'\n\n"
-        
-        "**Commit and Push:**\n"
-        "- **Message**: 'Port <brief description> from Python ADK commit <7-char-sha>'\n"
-        "- **Branch**: Use the branch name created above\n"
-        "- **Author**: 'ADK TypeScript Porter <noreply@github.com>'\n\n"
-        
-        "**Pull Request Creation:**\n"
-        "- **Title**: 'Port <brief description> from Python ADK commit <7-char-sha>'\n"
-        "- **Body**: Use the comprehensive summary provided by coder_agent (it's in PR-ready format)\n"
-        "- **Head Branch**: Use the branch name created above\n"
-        "- **Base Branch**: 'main'\n"
-        "- **Issue Number**: Use the issue number from step 2a for linking\n\n"
+        "- `publish_port_to_github`: Handle all GitHub operations in one call (issue, branch, commit, PR)\n\n"
         
         "**KEY PRINCIPLES:**\n"
         "- You will be given commit hashes directly by the user\n"
         "- Complete one full workflow per commit hash provided\n"
         "- Use `coder_agent` first - it handles all code translation work\n"
-        "- Only proceed with GitHub operations if code translation succeeds\n"
+        "- Only proceed with GitHub publishing if code translation succeeds\n"
+        "- Use `publish_port_to_github` for all GitHub operations - it's fully automated\n"
         "- If code translation fails, stop immediately (no GitHub artifacts created)\n"
-        "- If code translation succeeds, create all GitHub artifacts in sequence\n"
         "- Provide clear status updates at each step\n"
-        "- The new workflow prevents orphaned GitHub artifacts when code doesn't work"
+        "- The workflow is now much simpler: Code → GitHub (if code succeeds)"
     ),
     tools=[
         coder_agent_tool,  # This handles all code translation and file operations
-        create_issue,
-        create_branch,
-        commit_and_push_changes,
-        create_pull_request,
-        close_issue,
+        publish_port_to_github,  # This handles all GitHub operations in one call
     ],
 )
 
