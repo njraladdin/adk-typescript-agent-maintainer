@@ -1,9 +1,6 @@
 from typing import Optional, Dict, Any
-import requests
-from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
-
-TOKEN_CACHE_KEY = "github_token"
+from ..git_api_utils import create_issue as api_create_issue
 
 def create_issue(
     username: str,
@@ -28,69 +25,17 @@ def create_issue(
     # Log the start of the tool execution with main parameters
     print(f"[CREATE_ISSUE] username={username} repo={repo} title='{title[:50]}{'...' if len(title) > 50 else ''}'")
     
-    try:
-        # Step 1: Check for cached token
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
-        
-        # If no token, we need to get it from environment or request it
-        if not github_token:
-            # For now, let's try to get it from environment as a fallback
-            import os
-            github_token = os.getenv("GITHUB_TOKEN")
-            
-            if github_token:
-                # Cache the token for future use
-                tool_context.state[TOKEN_CACHE_KEY] = github_token
-            else:
-                error_result = {
-                    'status': 'error', 
-                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-                }
-                # Log the error output
-                print(f"[CREATE_ISSUE] : output status=error, message={error_result['message']}")
-                return error_result
-
-        # Step 2: Make authenticated API call
-        url = f"https://api.github.com/repos/{username}/{repo}/issues"
-        
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {github_token}"
-        }
-        
-        data = {
-            "title": title,
-            "body": body
-        }
-        
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        
-        # Step 3: Return success response
-        result = response.json()
-        success_result = {
-            "status": "success",
-            "data": result,
-            "html_url": result.get("html_url"),
-            "number": result.get("number")
-        }
-        
-        # Log the success output
-        print(f"[CREATE_ISSUE] : output status=success, issue_number={success_result['number']}, html_url={success_result['html_url']}")
-        return success_result
+    # Use the centralized API utility
+    repo_full = f"{username}/{repo}"
+    result = api_create_issue(repo_full, title, body)
     
-    except RequestException as error:
-        # If we get a 401/403, clear the cached token
-        if hasattr(error, 'response') and error.response.status_code in (401, 403):
-            tool_context.state[TOKEN_CACHE_KEY] = None
-            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        else:
-            print(f"Error creating issue: {error}")
-            error_result = {'status': 'error', 'message': str(error)}
-        
-        # Log the error output
-        print(f"[CREATE_ISSUE] : output status=error, message={error_result['message']}")
-        return error_result
+    # Log the output
+    if result.get('status') == 'success':
+        print(f"[CREATE_ISSUE] : output status=success, issue_number={result['number']}, html_url={result['html_url']}")
+    else:
+        print(f"[CREATE_ISSUE] : output status=error, message={result.get('message', 'Unknown error')}")
+    
+    return result
 
 if __name__ == "__main__":
     # Example usage

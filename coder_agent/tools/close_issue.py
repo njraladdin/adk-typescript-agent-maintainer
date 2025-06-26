@@ -1,9 +1,6 @@
 from typing import Optional, Dict, Any
-import requests
-from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
-
-TOKEN_CACHE_KEY = "github_token"
+from ..git_api_utils import close_issue as api_close_issue
 
 def close_issue(
     username: str,
@@ -28,78 +25,17 @@ def close_issue(
     # Log the start of the tool execution with main parameters
     print(f"[CLOSE_ISSUE] username={username} repo={repo} issue_number={issue_number} has_comment={comment is not None}")
     
-    try:
-        # Step 1: Check for cached token
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
-        
-        # If no token, we need to get it from environment or request it
-        if not github_token:
-            # For now, let's try to get it from environment as a fallback
-            import os
-            github_token = os.getenv("GITHUB_TOKEN")
-            
-            if github_token:
-                # Cache the token for future use
-                tool_context.state[TOKEN_CACHE_KEY] = github_token
-            else:
-                error_result = {
-                    'status': 'error', 
-                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-                }
-                # Log the error output
-                print(f"[CLOSE_ISSUE] : output status=error, message={error_result['message']}")
-                return error_result
-
-        base_url = f"https://api.github.com/repos/{username}/{repo}"
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {github_token}"
-        }
-        
-        # Add a comment if provided
-        if comment:
-            comment_url = f"{base_url}/issues/{issue_number}/comments"
-            comment_data = {"body": comment}
-            
-            comment_response = requests.post(
-                comment_url,
-                headers=headers,
-                json=comment_data
-            )
-            comment_response.raise_for_status()
-        
-        # Close the issue
-        issue_url = f"{base_url}/issues/{issue_number}"
-        close_data = {
-            "state": "closed"
-        }
-        
-        response = requests.patch(issue_url, headers=headers, json=close_data)
-        response.raise_for_status()
-        
-        success_result = {
-            "status": "success",
-            "data": response.json(),
-            "html_url": response.json().get("html_url"),
-            "number": issue_number
-        }
-        
-        # Log the success output
-        print(f"[CLOSE_ISSUE] : output status=success, issue_number={issue_number}, html_url={success_result['html_url']}")
-        return success_result
+    # Use the centralized API utility
+    repo_full = f"{username}/{repo}"
+    result = api_close_issue(repo_full, issue_number, comment)
     
-    except RequestException as error:
-        # If we get a 401/403, clear the cached token
-        if hasattr(error, 'response') and error.response.status_code in (401, 403):
-            tool_context.state[TOKEN_CACHE_KEY] = None
-            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        else:
-            print(f"Error closing issue: {error}")
-            error_result = {'status': 'error', 'message': str(error)}
-        
-        # Log the error output
-        print(f"[CLOSE_ISSUE] : output status=error, message={error_result['message']}")
-        return error_result
+    # Log the output
+    if result.get('status') == 'success':
+        print(f"[CLOSE_ISSUE] : output status=success, issue_number={issue_number}, html_url={result['html_url']}")
+    else:
+        print(f"[CLOSE_ISSUE] : output status=error, message={result.get('message', 'Unknown error')}")
+    
+    return result
 
 if __name__ == "__main__":
     # Example usage

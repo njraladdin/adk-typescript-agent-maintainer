@@ -1,9 +1,7 @@
 from typing import Optional, Dict, Any
-import requests
-from requests.exceptions import RequestException
 from google.adk.tools import ToolContext
+from ..git_api_utils import fetch_file_content, get_github_token
 
-TOKEN_CACHE_KEY = "github_token"
 GATHERED_CONTEXT_KEY = "gathered_context"
 
 def get_file_content(
@@ -44,59 +42,37 @@ def get_file_content(
     print(f"[GET_FILE_CONTENT] repo={repo} file_path={file_path} branch={branch or 'default'}")
     
     try:
-        # Step 1: Check for cached token
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY) if tool_context else None
-        
-        # If no token, we need to get it from environment or request it
+        # Check if GitHub token is available
+        github_token = get_github_token()
         if not github_token:
-            # For now, let's try to get it from environment as a fallback
-            import os
-            github_token = os.getenv("GITHUB_TOKEN")
-            
-            if github_token and tool_context:
-                # Cache the token for future use
-                tool_context.state[TOKEN_CACHE_KEY] = github_token
-            elif not github_token:
-                error_result = {
-                    'status': 'error', 
-                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-                }
-                # Log the error output
-                print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
-                return error_result
-
-        url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-        if branch:
-            url += f"?ref={branch}"
-            
-        headers = {
-            "Accept": "application/vnd.github.v3.raw",
-            "Authorization": f"token {github_token}"
-        }
-        
-        # First get the metadata with regular API call
-        meta_headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {github_token}"
-        }
-        
-        meta_response = requests.get(url, headers=meta_headers)
-        meta_response.raise_for_status()
-        metadata = meta_response.json()
-        
-        if isinstance(metadata, list):
             error_result = {
-                'status': 'error',
-                'message': f"Path '{file_path}' points to a directory, not a file"
+                'status': 'error', 
+                'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
             }
             # Log the error output
             print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
             return error_result
         
-        # Then get the raw content
-        content_response = requests.get(url, headers=headers)
-        content_response.raise_for_status()
-        content = content_response.text
+        # Use the centralized API utility
+        content = fetch_file_content(repo, file_path, branch or "main")
+        
+        # Check if it's an error response
+        if content.startswith("Error fetching file:"):
+            error_result = {
+                'status': 'error',
+                'message': content
+            }
+            # Log the error output
+            print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
+            return error_result
+        
+        # Create a minimal metadata structure (since the utility only returns content)
+        metadata = {
+            'name': file_path.split('/')[-1],
+            'path': file_path,
+            'size': len(content.encode('utf-8')),
+            'type': 'file'
+        }
         
         # Store file content in session state
         if tool_context:
@@ -118,14 +94,9 @@ def get_file_content(
         
         return success_result
     
-    except RequestException as error:
-        # If we get a 401/403, clear the cached token
-        if hasattr(error, 'response') and error.response.status_code in (401, 403) and tool_context:
-            tool_context.state[TOKEN_CACHE_KEY] = None
-            error_result = {'status': 'error', 'message': 'Authentication failed. Token may be invalid.'}
-        else:
-            print(f"Error fetching file content: {error}")
-            error_result = {'status': 'error', 'message': str(error)}
+    except Exception as error:
+        print(f"Error fetching file content: {error}")
+        error_result = {'status': 'error', 'message': str(error)}
         
         # Log the error output
         print(f"[GET_FILE_CONTENT] : output status=error, message={error_result['message']}")
@@ -156,48 +127,33 @@ def file_exists(
     print(f"[FILE_EXISTS] repo={repo} file_path={file_path} branch={branch or 'default'}")
     
     try:
-        # Step 1: Check for cached token
-        github_token = tool_context.state.get(TOKEN_CACHE_KEY)
-        
-        # If no token, we need to get it from environment or request it
+        # Check if GitHub token is available
+        github_token = get_github_token()
         if not github_token:
-            # For now, let's try to get it from environment as a fallback
-            import os
-            github_token = os.getenv("GITHUB_TOKEN")
-            
-            if github_token:
-                # Cache the token for future use
-                tool_context.state[TOKEN_CACHE_KEY] = github_token
-            else:
-                error_result = {
-                    'status': 'error', 
-                    'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
-                }
-                # Log the error output
-                print(f"[FILE_EXISTS] : output status=error, message={error_result['message']}")
-                return error_result
-
-        url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-        if branch:
-            url += f"?ref={branch}"
-            
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {github_token}"
-        }
-        
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            content = response.json()
-            # Make sure it's a file, not a directory
-            exists = not isinstance(content, list)
-            success_result = {
-                'status': 'success',
-                'exists': exists
+            error_result = {
+                'status': 'error', 
+                'message': 'GitHub token not found. Please set GITHUB_TOKEN environment variable or provide authentication.'
             }
-            # Log the output of the tool execution
-            print(f"[FILE_EXISTS] : output status=success, exists={exists}")
-            return success_result
+            # Log the error output
+            print(f"[FILE_EXISTS] : output status=error, message={error_result['message']}")
+            return error_result
+
+        # Try to fetch the file content using our utility
+        content = fetch_file_content(repo, file_path, branch or "main")
+        
+        # If it's an error, the file doesn't exist
+        if content.startswith("Error fetching file:"):
+            exists = False
+        else:
+            exists = True
+            
+        success_result = {
+            'status': 'success',
+            'exists': exists
+        }
+        # Log the output of the tool execution
+        print(f"[FILE_EXISTS] : output status=success, exists={exists}")
+        return success_result
         
         success_result = {
             'status': 'success',
