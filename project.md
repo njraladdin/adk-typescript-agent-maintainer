@@ -47,7 +47,7 @@ focused and simpler : make everything more focused. a lot of stuff here doesn't 
 
 TODO: 
 - make github stuff happen after porting in one block instead of some github stuff happeneing before we port nad some after we port the commit, done 
-- make it so the github stuff doesn't require agentic process, just simpel workflow (a tool) 
+- make it so the github stuff doesn't require agentic process, just simpel workflow (a tool), done 
 
 
 - make file reading faster by reading files  from the cloned repo not from the api 
