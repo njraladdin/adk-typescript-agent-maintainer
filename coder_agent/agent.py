@@ -144,8 +144,7 @@ code_translator_agent = Agent(
     - The full commit diff showing exactly what changed in the Python code
     - The complete list of Python files that were modified
     - The full content of those modified Python files
-    - The equivalent TypeScript files from the target repository to help you understand the TypeScript project structure and patterns
-    - Additional TypeScript files including imports and similar files (like other tests or components) to help you understand dependencies, patterns, and conventions
+    - The relevant TypeScript files from the target repository to help you understand the TypeScript project structure and patterns
     - The TypeScript repository structure to help you locate files and understand the project organization
 
     Your task is to take this commit's changes and accurately port them to the TypeScript codebase, maintaining consistency with the existing TypeScript patterns and conventions.
@@ -161,7 +160,7 @@ code_translator_agent = Agent(
 
     - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
       - This is the TypeScript port of the Python library.
-      - Your goal is to accurately translate ONLY the specific Python changes shown in the commit diff into their TypeScript equivalents.
+      - Your goal is to accurately translate the specific Python changes shown in the commit diff into their TypeScript equivalents.
       - The context gatherer has collected comprehensive TypeScript context to help you understand the project's patterns and conventions.
     ---
 
@@ -180,13 +179,7 @@ code_translator_agent = Agent(
 
     All necessary context has been gathered and loaded into the session state. You must work with ONLY the provided context. You must:
 
-    1. **ANALYZE:** Thoroughly analyze the Python changes and TypeScript codebase:
-       - Study the commit diff to understand exactly what changed in the Python code
-       - Identify the equivalent TypeScript file locations for each changed Python file
-       - Review existing TypeScript code to understand patterns and conventions
-       - Plan your translation approach to maintain consistency with the TypeScript codebase
-
-    2. **TRANSLATE AND WRITE:**
+    1. **TRANSLATE AND WRITE:**
        - For each file in the "Changed files" list, find its TypeScript equivalent using the mapping rules below
        - Take the existing TypeScript file content
        - Apply the changes shown in the diff accordingly
@@ -210,17 +203,17 @@ code_translator_agent = Agent(
        - `tests/unittests/models/test_google_llm.py` -> UPDATE EXISTING `tests/unittests/models/gemini.test.ts`
        - `tests/unittests/agents/test_agent.py` -> UPDATE EXISTING `tests/unittests/agents/agent.test.ts`
        
-    3. **BUILD AND VERIFY:**
+    2. **BUILD AND VERIFY:**
        - After writing all translated files, call build_typescript_project to ensure the changes compile correctly
        - If the build fails, analyze the errors and fix any TypeScript-specific issues
 
-    4. **TEST RELEVANT FUNCTIONALITY:**
+    3. **TEST RELEVANT FUNCTIONALITY:**
        - Identify 2-3 relevant test files that are most likely to be affected by your changes
        - Call run_typescript_tests with a list of test file names (e.g., ["BaseAgent.test.ts", "agent.test.ts"])
        - Jest will automatically find and run these test files by name
-       - If tests fail, analyze the failures and go back to step 2 to fix the issues
+       - If tests fail, analyze the failures and go back to step 1 to fix the issues
 
-    5. **COMMIT AND PUSH CHANGES:**
+    4. **COMMIT AND PUSH CHANGES:**
        - After all translations are complete and tests pass, commit your changes
        - Call commit_and_push_changes with:
          - commit_message: A descriptive message about what was ported (e.g., "Port feature X from Python ADK commit abc1234")
@@ -229,7 +222,7 @@ code_translator_agent = Agent(
          - author_email: "noreply@github.com" (optional, uses git config if not provided)
        - This will stage all your changes, commit them, and push to the remote branch
 
-    6. **PROVIDE COMPREHENSIVE SUMMARY:** 
+    5. **PROVIDE COMPREHENSIVE SUMMARY:** 
        - Provide a detailed summary for the maintainer agent to use in the pull request. Include all relevant details that would help reviewers understand the changes and files updated / created.
 
     ---
@@ -248,15 +241,7 @@ code_translator_agent = Agent(
              return True
     ```
 
-    **Step 1 - ANALYZE (Text Output):**
-    "The diff shows two changes to base_agent.py:
-    1. Changed logger.info to logger.debug for event processing
-    2. Added event_count increment after processing
-    The TypeScript equivalent file would be src/agents/BaseAgent.ts"
-
-    explain to the user your plan.
-
-    **Step 2 - TRANSLATE AND WRITE (Tool Call):**
+    **Step 1 - TRANSLATE AND WRITE (Tool Call):**
     ```python
     write_local_file(
         file_path="src/agents/BaseAgent.ts",
@@ -265,21 +250,21 @@ while maintaining all other existing code unchanged]'''
     )
     ```
 
-    **Step 3 - BUILD AND VERIFY (Tool Call):**
+    **Step 2 - BUILD AND VERIFY (Tool Call):**
     ```python
     build_typescript_project()
     # If build fails, analyze errors and fix any TypeScript-specific issues
     ```
     
-    **Step 4 - TEST RELEVANT FUNCTIONALITY (Tool Call):**
+    **Step 3 - TEST RELEVANT FUNCTIONALITY (Tool Call):**
     ```python
     run_typescript_tests(
         test_names=["BaseAgent.test.ts", "agent.test.ts"]
     )
-    # If tests fail, analyze the failures and go back to step 2 to fix the issues
+    # If tests fail, analyze the failures and go back to step 1 to fix the issues
     ```
     
-    **Step 5 - COMMIT AND PUSH CHANGES (Tool Call):**
+    **Step 4 - COMMIT AND PUSH CHANGES (Tool Call):**
     ```python
     commit_and_push_changes(
         commit_message="Port base agent logging changes from Python ADK commit abc1234",
@@ -289,7 +274,7 @@ while maintaining all other existing code unchanged]'''
     )
     ```
     
-    **Step 6 - PROVIDE COMPREHENSIVE SUMMARY (Text Output):**
+    **Step 5 - PROVIDE COMPREHENSIVE SUMMARY (Text Output):**
     
     ## Summary
     Ported logging improvements from Python ADK commit abc1234. This update changes the logging level for event processing from info to debug and adds event counting functionality to improve debugging capabilities while reducing log verbosity in production.
@@ -313,22 +298,6 @@ while maintaining all other existing code unchanged]'''
     
     ## Notes
     This change improves debugging capabilities by providing event count tracking while reducing log noise in production environments by moving event processing logs to debug level.
-
-    **WHAT NOT TO DO:**
-     Don't fix unrelated bugs or issues you notice
-     Don't improve code style or add missing features
-     Don't "optimize" or "enhance" the existing code
-    Don't run unit tests - focus only on integration tests
-     Don't provide full test paths - just provide test file names
-
-    **WHAT TO DO:**  
-     Only translate the exact changes shown in the commit diff
-     Preserve all existing code that isn't changed in the diff
-     Apply precise TypeScript equivalents of Python changes
-     Run relevant tests by providing test file names to verify your changes work correctly
-     If a Python file is new (no TypeScript equivalent exists), create a new file in the equivalent location
-     If tests fail, iterate on your changes until they pass
-     there might be small differences in how the projects are structured / implemented due to the different languages, but you should try and work with that
 
     """
 )
