@@ -58,7 +58,7 @@ class AgentInput(BaseModel):
 
 # --- Agent 1: Context Gatherer ---
 context_gatherer_agent = Agent(
-    name="ContextGatherer",
+    name="context_gatherer_agent",
     model="gemini-2.5-flash",
     tools=[get_file_content],
     before_agent_callback=gather_commit_context,
@@ -132,9 +132,9 @@ context_gatherer_agent = Agent(
     """,
 )
 
-# --- Agent 2: Code Translator ---
-code_translator_agent = Agent(
-    name="CodeTranslator",
+# --- Agent 2: Coder ---
+coder_agent = Agent(
+    name="coder_agent",
     model="gemini-2.5-flash",
     tools=[write_local_file, build_typescript_project, run_typescript_tests],
     before_agent_callback=load_gathered_context,
@@ -264,50 +264,10 @@ while maintaining all other existing code unchanged]'''
 # ==============================================================================
 
 context_gatherer_tool = agent_tool.AgentTool(agent=context_gatherer_agent)
-code_translator_tool = agent_tool.AgentTool(agent=code_translator_agent)
-
-# ==============================================================================
-# 4. DEFINE THE CODER AGENT (for interactive use)
-# ==============================================================================
-
-coder_agent = Agent(
-    name="coder_agent",
-    model="gemini-2.5-flash",
-    
-    # Add the input schema for proper tool integration
-    input_schema=AgentInput,
-    
-    # Provide the sub-agents as tools to the coordinator.
-    tools=[
-        context_gatherer_tool,
-        code_translator_tool,
-    ],
-    
-    # Add the setup_agent_workspace callback
-    before_agent_callback=setup_agent_workspace,
-    
-    instruction="""
-    You are an expert coordinator for a code porting workflow. You have two main sub-agents available as tools:
-    1.  `ContextGatherer(commit_id: str)`: Use this tool to collect all necessary files and context for a given commit. The tool will automatically store all gathered information in the session state and save it to a JSON file.
-    2.  `CodeTranslator()`: Use this tool to perform the actual code translation. It will automatically load the context from the session state. If no context is available in the session state, it will automatically find and load the most recent context file saved by the ContextGatherer.
-
-    Your job is to understand the user's request and orchestrate the workflow.
-
-    - If the user provides a commit ID and asks to start the full porting process, you MUST first call the `ContextGatherer` tool with the commit ID. After it completes successfully, call the `CodeTranslator` tool to finish the job.
-    
-    - If the user explicitly asks to ONLY gather context for a commit ID, just call the `ContextGatherer` tool and report on what was collected.
-    
-    - If the user asks to ONLY translate (assuming context is already gathered), call the `CodeTranslator` tool. The translator will automatically load the most recent context file if needed.
-    
-    This modular approach makes it easier to test each agent separately and ensures the workflow can be resumed at any point.
-    """,
-)
-
-# Convert coder agent to a tool for use by maintainer agent
 coder_agent_tool = agent_tool.AgentTool(agent=coder_agent)
 
 # ==============================================================================
-# 5. DEFINE THE MAINTAINER AGENT
+# 4. DEFINE THE MAINTAINER AGENT 
 # ==============================================================================
 
 maintainer_agent = Agent(
@@ -318,54 +278,78 @@ maintainer_agent = Agent(
     input_schema=AgentInput,
     
     description=(
-        "Main coordinator for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
-        "Handles the complete workflow: creating issues and branches, using the coder agent for translation, "
-        "and submitting pull requests."
+        "Main agent for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
+        "Handles the complete workflow: gathering context, translating code, building, testing, and publishing to GitHub."
     ),
-    instruction=(
-        "You are the main coordinator for porting specific commits from the Python ADK repository "
-        "to its TypeScript equivalent. You will be given a commit hash and handle the complete workflow.\n\n"
-        
-        "**WORKFLOW:**\n"
-        "1. **Code Translation** - Use the coder_agent to translate, build, and test the Python code to TypeScript\n"
-        "2. **GitHub Publishing** - Use publish_port_to_github to handle all GitHub operations in one call\n\n"
-                
-        "**STEPS:**\n"
-        "Given a commit hash (e.g., 'abc1234'), you will:\n\n"
-        
-        "1. **Translate Code First**:\n"
-        "   - Use `coder_agent(commit_id='abc1234')` to translate the Python code to TypeScript\n"
-        "   - The coder_agent will gather context, translate files, build, and test\n"
-        "   - If coder_agent fails, stop here (no GitHub operations needed)\n\n"
-        
-        "2. **Publish to GitHub** (only if coder_agent succeeds):\n"
-        "   - Use `publish_port_to_github(commit_sha='abc1234')`\n"
-        "   - This will automatically create issue, branch, commit, push, and PR\n\n"
-        
-        "**EXAMPLE:**\n"
-        "User: 'Port commit abc1234'\n\n"
-        
-        "Step 1: `coder_agent(commit_id='abc1234')`\n"
-        "→ [SUCCESS] Code translated, built, and tested\n\n"
-        
-        "Step 2: `publish_port_to_github(commit_sha='abc1234')`\n"
-        "→ [SUCCESS] Created issue #45, branch port-abc1234, and PR #12\n\n"
-        
-        "**IF CODE TRANSLATION FAILS:**\n"
-        "User: 'Port commit ghi9012'\n"
-        "Step 1: `coder_agent(commit_id='ghi9012')`\n"
-        "→ [FAILED] TypeScript compilation errors\n"
-        "→ Stop here (no GitHub operations performed)"
-    ),
+    
+    # Provide all the tools needed for the complete workflow
     tools=[
-        coder_agent_tool,  # This handles all code translation and file operations
-        publish_port_to_github,  # This handles all GitHub operations in one call
+        context_gatherer_tool,
+        coder_agent_tool,
+        publish_port_to_github,
     ],
+    
+    # Add the setup_agent_workspace callback
+    before_agent_callback=setup_agent_workspace,
+    
+    instruction="""
+    You are the main agent for porting specific commits from the Python ADK repository to its TypeScript equivalent. 
+    You handle the complete end-to-end workflow from gathering context to publishing on GitHub.
+
+    **WORKFLOW:**
+    1. **Gather Context** - Use ContextGatherer to collect all necessary files and context for the commit
+    2. **Translate Code** - Use Coder to translate, build, and test the Python code to TypeScript  
+    3. **Publish to GitHub** - Use publish_port_to_github to handle all GitHub operations in one call
+
+    **STEPS:**
+    Given a commit hash (e.g., 'abc1234'), you will:
+
+    1. **Gather Context**:
+       - Use `ContextGatherer(commit_id='abc1234')` to collect all necessary files and context
+       - This will gather commit info, Python files, TypeScript equivalents, and related files
+
+    2. **Translate Code**:
+       - Use `Coder()` to translate the Python code to TypeScript
+       - The Coder will load the context, translate files, build, and test
+       - If Coder fails, stop here (no GitHub operations needed)
+
+    3. **Publish to GitHub** (only if code translation succeeds):
+       - Use `publish_port_to_github(commit_sha='abc1234')`
+       - This will automatically create issue, branch, commit, push, and PR
+
+    **EXAMPLE - FULL WORKFLOW:**
+    User: 'Port commit abc1234'
+
+    Step 1: `ContextGatherer(commit_id='abc1234')`
+    → [SUCCESS] Gathered context for 3 Python files and their TypeScript equivalents
+
+    Step 2: `Coder()`
+    → [SUCCESS] Translated files, build successful, tests passing
+
+    Step 3: `publish_port_to_github(commit_sha='abc1234')`
+    → [SUCCESS] Created issue #45, branch port-abc1234, and PR #12
+
+    **EXAMPLE - CODE TRANSLATION FAILURE:**
+    User: 'Port commit ghi9012'
+
+    Step 1: `ContextGatherer(commit_id='ghi9012')`
+    → [SUCCESS] Context gathered
+
+    Step 2: `Coder()`
+    → [FAILED] TypeScript compilation errors
+    → Stop here (no GitHub operations performed)
+
+    **PARTIAL OPERATIONS:**
+    You can also handle specific requests:
+    - 'Gather context for commit abc123' → Use `ContextGatherer` only
+    - 'Translate the gathered context' → Use `Coder` only  
+    - 'Publish commit abc123 to GitHub' → Use `publish_port_to_github` only
+    """,
 )
 
 # ==============================================================================
-# 6. SET DEFAULT ROOT AGENT
+# 5. SET DEFAULT ROOT AGENT
 # ==============================================================================
 
-# For backwards compatibility, export coder_agent as root_agent
-root_agent = coder_agent
+# For backwards compatibility, export maintainer_agent as root_agent
+root_agent = maintainer_agent
