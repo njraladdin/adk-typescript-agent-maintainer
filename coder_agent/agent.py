@@ -20,10 +20,10 @@ from .tools.run_typescript_tests import run_typescript_tests
 from .tools.commit_and_push_changes import commit_and_push_changes
 
 # --- Maintainer Agent Tool Imports ---
-from maintainer_agent.tools.setup_commit_port import setup_commit_port
-from maintainer_agent.tools.close_issue import close_issue
-from maintainer_agent.tools.delete_issue import delete_issue
-from maintainer_agent.tools.create_pull_request import create_pull_request
+from .tools.setup_commit_port import setup_commit_port
+from .tools.close_issue import close_issue
+from .tools.delete_issue import delete_issue
+from .tools.create_pull_request import create_pull_request
 
 # --- Callback Imports ---
 from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace, gather_commit_context
