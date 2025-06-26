@@ -17,80 +17,154 @@ from .workspace_utils import (
     check_workspace_setup_status
 )
 # Import git utilities for fresh repository setup
-from .git_utils import reset_repo_to_clean_state, pull_latest_changes
+from .git_utils import reset_repo_to_clean_state, pull_latest_changes, fetch_commit_diff_data, fetch_repo_structure, fetch_file_content
+
+def gather_commit_context(callback_context: CallbackContext) -> Optional[Any]:
+    """
+    A before-agent callback that gathers basic commit information and files.
+    This does the mechanical work of fetching commit diff, repo structures, and Python files.
+    """
+    print("CALLBACK: Gathering commit context...")
+    
+    # Check if we have a commit_id in the invocation input
+    if hasattr(callback_context, 'invocation_input') and callback_context.invocation_input:
+        commit_id = callback_context.invocation_input.get('commit_id')
+        if not commit_id:
+            print("CALLBACK ERROR: No commit_id found in invocation input")
+            return None
+    else:
+        print("CALLBACK ERROR: No invocation input available")
+        return None
+    
+    print(f"CALLBACK: Processing commit {commit_id}")
+    
+    # Step 1: Get commit diff and changed files
+    print("CALLBACK: Fetching commit diff...")
+    commit_info = fetch_commit_diff_data(commit_id)
+    
+    # Step 2: Get content of each changed Python file and add to commit_info
+    print("CALLBACK: Fetching Python file contents...")
+    changed_files_with_content = []
+    for file_path in commit_info.get('changed_files', []):
+        content = fetch_file_content('google/adk-python', file_path)
+        changed_files_with_content.append({
+            'path': file_path,
+            'content': content
+        })
+    
+    # Enhanced commit context with file contents
+    commit_context = {
+        'commit_sha': commit_info['commit_sha'],
+        'diff': commit_info['diff'],
+        'changed_files': changed_files_with_content
+    }
+    callback_context.state['commit_context'] = commit_context
+    
+    # Step 3: Get TypeScript repository structure  
+    print("CALLBACK: Fetching TypeScript repository structure...")
+    typescript_structure = fetch_repo_structure('njraladdin/adk-typescript')
+    callback_context.state['typescript_repo_structure'] = typescript_structure
+    
+    # Step 4: Initialize empty TypeScript files (to be filled by the agent)
+    callback_context.state['typescript_files'] = {}
+    
+    print(f"CALLBACK: Successfully gathered context for commit {commit_id}")
+    print(f"CALLBACK: Found {len(changed_files_with_content)} changed Python files")
+    
+    return None
 
 def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
-    An after-agent callback that checks for the 'gathered_context' in the
-    session state and saves it to a JSON file for debugging and inspection.
+    An after-agent callback that collects all context from separate session state items
+    and saves it to a JSON file for debugging and inspection.
     """
-    # Check if the context object exists in the state.
-    # The 'state' property of the callback_context gives you read/write access.
-    if 'gathered_context' in callback_context.state:
+    # Check if we have the context items in the state
+    if 'commit_context' not in callback_context.state:
+        print("CALLBACK: No commit_context found in session state. Skipping save.")
+        return None
         
-        context_data = callback_context.state['gathered_context']
-        
-        # Use the invocation_id to give each run a unique filename.
-        run_id = callback_context.invocation_id
-        commit_sha = context_data.get('commit_info', {}).get('commit_sha', 'unknown_commit')
-        
-        # Construct a descriptive filename
-        filename = f"context__{run_id}__{commit_sha}.json"
-        
-        # Ensure the artifacts directory exists
-        os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-        
-        output_path = os.path.join(ARTIFACTS_DIR, filename)
-        
-        print(f"CALLBACK: Found 'gathered_context'. Saving to '{output_path}'...")
-        
-        # Create a serializable version of the context data
-        serializable_context = {
-            'commit_info': context_data.get('commit_info', {}),
-            'python_repo_structure': context_data.get('python_repo_structure', {}),
-            'typescript_repo_structure': context_data.get('typescript_repo_structure', {}),
-            'python_context_files': {
-                path: content 
-                for path, content in context_data.get('python_context_files', {}).items()
-            },
-            'typescript_context_files': {
-                path: content 
-                for path, content in context_data.get('typescript_context_files', {}).items()
-            }
+    # Collect all context data from separate session state items
+    commit_context = callback_context.state.get('commit_context', {})
+    
+    # Convert changed_files_with_content back to the expected format for compatibility
+    python_context_files = {}
+    for file_info in commit_context.get('changed_files', []):
+        if isinstance(file_info, dict) and 'path' in file_info and 'content' in file_info:
+            python_context_files[file_info['path']] = file_info['content']
+    
+    context_data = {
+        'commit_info': {
+            'commit_sha': commit_context.get('commit_sha', ''),
+            'diff': commit_context.get('diff', ''),
+            'changed_files': [f['path'] for f in commit_context.get('changed_files', [])]
+        },
+        'python_repo_structure': '',  # We don't fetch this anymore, focus on TypeScript
+        'typescript_repo_structure': callback_context.state.get('typescript_repo_structure', ''),
+        'python_context_files': python_context_files,
+        'typescript_context_files': callback_context.state.get('typescript_files', {})
+    }
+    
+    # Use the invocation_id to give each run a unique filename.
+    run_id = callback_context.invocation_id
+    commit_sha = commit_context.get('commit_sha', 'unknown_commit')
+    
+    # Construct a descriptive filename
+    filename = f"context__{run_id}__{commit_sha}.json"
+    
+    # Ensure the artifacts directory exists
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    
+    output_path = os.path.join(ARTIFACTS_DIR, filename)
+    
+    print(f"CALLBACK: Saving gathered context to '{output_path}'...")
+    
+    # Create a serializable version of the context data
+    serializable_context = {
+        'commit_info': context_data.get('commit_info', {}),
+        'python_repo_structure': context_data.get('python_repo_structure', ''),
+        'typescript_repo_structure': context_data.get('typescript_repo_structure', ''),
+        'python_context_files': {
+            path: content 
+            for path, content in context_data.get('python_context_files', {}).items()
+        },
+        'typescript_context_files': {
+            path: content 
+            for path, content in context_data.get('typescript_context_files', {}).items()
         }
+    }
+    
+    # Add summary statistics
+    serializable_context['summary'] = {
+        'commit_sha': commit_sha,
+        'python_files_count': len(serializable_context['python_context_files']),
+        'typescript_files_count': len(serializable_context['typescript_context_files']),
+        'python_files': list(serializable_context['python_context_files'].keys()),
+        'typescript_files': list(serializable_context['typescript_context_files'].keys())
+    }
+    
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            # Use indent for readability
+            json.dump(serializable_context, f, indent=2)
+        print(f"CALLBACK: Successfully saved context artifact.")
         
-        # Add summary statistics
-        serializable_context['summary'] = {
-            'commit_sha': commit_sha,
-            'python_files_count': len(serializable_context['python_context_files']),
-            'typescript_files_count': len(serializable_context['typescript_context_files']),
-            'python_files': list(serializable_context['python_context_files'].keys()),
-            'typescript_files': list(serializable_context['typescript_context_files'].keys())
-        }
+        # Store the path to the saved file in the session state
+        callback_context.state['context_artifact_path'] = output_path
         
-        try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                # Use indent for readability
-                json.dump(serializable_context, f, indent=2)
-            print(f"CALLBACK: Successfully saved context artifact.")
-            
-            # Store the path to the saved file in the session state
-            callback_context.state['context_artifact_path'] = output_path
-            
-        except Exception as e:
-            print(f"CALLBACK: Error saving context artifact: {e}")
-            
+    except Exception as e:
+        print(f"CALLBACK: Error saving context artifact: {e}")
+        
     # This callback doesn't need to alter the agent's flow, so it returns None.
-    return None 
+    return None
 
 def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
     """
-    A before-agent callback that checks if 'gathered_context' is in the session state.
-    If not, it finds the latest context JSON file in the debug_output directory and loads it.
+    A before-agent callback that checks if context is in the session state.
+    If not, it finds the latest context JSON file and loads it into separate session state items.
     """
-    # Only proceed if 'gathered_context' is not already in the state
-    if 'gathered_context' not in callback_context.state:
-        print("CALLBACK: 'gathered_context' not found in session state. Attempting to load from file...")
+    # Only proceed if context is not already in the state
+    if 'commit_context' not in callback_context.state:
+        print("CALLBACK: Context not found in session state. Attempting to load from file...")
         
         try:
             # Ensure the artifacts directory exists
@@ -114,17 +188,28 @@ def load_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
             with open(latest_file, "r", encoding="utf-8") as f:
                 context_data = json.load(f)
             
-            # Create a properly structured gathered_context object
-            gathered_context = {
-                'commit_info': context_data.get('commit_info', {}),
-                'python_repo_structure': context_data.get('python_repo_structure', {}),
-                'typescript_repo_structure': context_data.get('typescript_repo_structure', {}),
-                'python_context_files': context_data.get('python_context_files', {}),
-                'typescript_context_files': context_data.get('typescript_context_files', {})
+            # Reconstruct commit_context with file contents
+            commit_info = context_data.get('commit_info', {})
+            python_files = context_data.get('python_context_files', {})
+            
+            changed_files_with_content = []
+            for file_path in commit_info.get('changed_files', []):
+                changed_files_with_content.append({
+                    'path': file_path,
+                    'content': python_files.get(file_path, '')
+                })
+            
+            commit_context = {
+                'commit_sha': commit_info.get('commit_sha', ''),
+                'diff': commit_info.get('diff', ''),
+                'changed_files': changed_files_with_content
             }
+            
+            # Load data into separate session state items
+            callback_context.state['commit_context'] = commit_context
+            callback_context.state['typescript_repo_structure'] = context_data.get('typescript_repo_structure', '')
+            callback_context.state['typescript_files'] = context_data.get('typescript_context_files', {})
                 
-            # Store the loaded context in the session state
-            callback_context.state['gathered_context'] = gathered_context
             print(f"CALLBACK: Successfully loaded context from {latest_file}")
             
             # Also store the path to the loaded file

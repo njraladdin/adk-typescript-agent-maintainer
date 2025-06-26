@@ -100,23 +100,12 @@ def get_file_content(
         
         # Store file content in session state
         if tool_context:
-            # Initialize gathered_context if it doesn't exist
-            if GATHERED_CONTEXT_KEY not in tool_context.state:
-                tool_context.state[GATHERED_CONTEXT_KEY] = {}
-            
-            # Determine which category this file belongs to based on repository
-            if "adk-python" in repo or "google" in repo.split('/')[0]:
-                # This is a Python file (either source or additional context)
-                if 'python_context_files' not in tool_context.state[GATHERED_CONTEXT_KEY]:
-                    tool_context.state[GATHERED_CONTEXT_KEY]['python_context_files'] = {}
-                tool_context.state[GATHERED_CONTEXT_KEY]['python_context_files'][file_path] = content
-                
-            else:
+            # Only store TypeScript files - Python files are handled by the callback
+            if not ("adk-python" in repo or "google" in repo.split('/')[0]):
                 # Default to TypeScript files for all other repositories
-                # This simplifies our implementation to focus on just Python and TypeScript
-                if 'typescript_context_files' not in tool_context.state[GATHERED_CONTEXT_KEY]:
-                    tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'] = {}
-                tool_context.state[GATHERED_CONTEXT_KEY]['typescript_context_files'][file_path] = content
+                if 'typescript_files' not in tool_context.state:
+                    tool_context.state['typescript_files'] = {}
+                tool_context.state['typescript_files'][file_path] = content
         
         success_result = {
             'status': 'success',

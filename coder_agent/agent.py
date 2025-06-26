@@ -20,7 +20,7 @@ from .tools.commit_and_push_changes import commit_and_push_changes
 
 
 # --- Callback Imports ---
-from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace
+from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace, gather_commit_context
 
 # ==============================================================================
 # 1. DEFINE THE STRUCTURED DATA MODELS
@@ -57,11 +57,12 @@ class CoderAgentInput(BaseModel):
 context_gatherer_agent = Agent(
     name="ContextGatherer",
     model="gemini-2.5-flash",
-    tools=[get_commit_diff, get_repo_file_structure, get_file_content],
+    tools=[get_file_content],
+    before_agent_callback=gather_commit_context,
     after_agent_callback=save_gathered_context,
     
     instruction="""
-    You are an expert context gatherer for a code migration project. Your sole purpose is to populate a complete context object in the session state by calling the necessary tools. The tools will automatically update the session state for you.
+    You are an expert context gatherer for a code migration project. Your purpose is to gather comprehensive TypeScript context by analyzing the basic context that has already been collected for you.
 
     ---
     **MISSION CONTEXT**
@@ -70,36 +71,32 @@ context_gatherer_agent = Agent(
 
     - **SOURCE REPOSITORY:** `google/adk-python`
       - This is the official Python Agent Development Kit where new features and bug fixes originate.
-      - You will be given a commit from this repository to analyze.
 
     - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
       - This is the TypeScript port of the Python library.
-      - Your goal is to gather all the necessary context so that another agent can accurately replicate the Python commit's changes in this TypeScript repository.
+      - Your goal is to gather comprehensive TypeScript context to help another agent accurately replicate the Python commit's changes.
     ---
 
-    **YOUR TASK STEPS**
+    **AVAILABLE CONTEXT**
+    
+    The following information has already been gathered and is available in your session state:
 
-    You will be given a commit SHA as input. You must perform the following steps by calling the appropriate tools:
+    **Commit Information:**
+    {commit_context}
 
-    1. Call `get_commit_diff` with the provided commit SHA to get the list of changed files.
-       - The tool will automatically store commit info in the session state.
+    **TypeScript Repository Structure:**
+    {typescript_repo_structure}
 
-    2. Call `get_repo_file_structure` for both repositories:
-       - For Python: repo='google/adk-python'
-       - For TypeScript: repo='njraladdin/adk-typescript'
-       - The tool will automatically store repo structures in the session state.
+    **YOUR TASK**
 
-    3. For each changed Python file from the commit diff, call `get_file_content` with:
-       - repo='google/adk-python'
-       - file_path=<path to the Python file>
-       - The tool will automatically store these in 'python_context_files'.
+    Your job is to gather comprehensive TypeScript context files to help the translation agent understand TypeScript patterns and conventions:
 
-    4. For each equivalent TypeScript file you identify (if any), call `get_file_content` with:
-       - repo='njraladdin/adk-typescript'
-       - file_path=<path to the TypeScript file>
-       - The tool will automatically store these in 'typescript_context_files'.
+    1. **Identify Equivalent TypeScript Files:**
+       - For each changed Python file, determine its TypeScript equivalent using the repository structure
+       - Call `get_file_content` with repo='njraladdin/adk-typescript' and the TypeScript file path
+       - The tool will automatically store these in the 'typescript_files' session state
 
-    5. Gather comprehensive TypeScript context files:
+    2. **Gather Comprehensive TypeScript Context:**
        - Analyze each TypeScript file you've collected
        - Identify any imports of local modules (e.g., `import Helper from '../utils'`)
        - For each local import, call `get_file_content` with the TypeScript repo details
@@ -108,46 +105,26 @@ context_gatherer_agent = Agent(
          - For component files: Collect 1-2 similar component files to understand component patterns
          - For utility files: Collect 1-2 related utility files to understand utility patterns
          - For model files: Collect 1-2 related model files to understand model patterns
-       - The tool will automatically store these in 'typescript_context_files'
-
-    6. When you have called the tools for all necessary files, provide a brief summary of what you've collected.
+       - The tool will automatically store these in the 'typescript_files' session state
 
     ---
-    **EXAMPLE SCENARIO**
+    **EXAMPLE WORKFLOW**
 
-    - **INPUT:** Commit 'a1b2c3d4'
+    Given the Python changed file `google/adk/agents/base_agent.py`:
 
-    - **YOUR ACTION (Step 1):** Call `get_commit_diff(username='google', repo='adk-python', commit_sha='a1b2c3d4')`.
-      - Result: Changed file is `google/adk/agents/base_agent.py`.
-      - The tool automatically stores this in the session state under 'commit_info'.
+    1. **Identify equivalent:** The TypeScript equivalent would be `src/agents/BaseAgent.ts`
+       - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/BaseAgent.ts')`
 
-    - **YOUR ACTION (Step 2):** 
-      - Call `get_repo_file_structure(repo='google/adk-python')`.
-      - Call `get_repo_file_structure(repo='njraladdin/adk-typescript')`.
-      - The tool automatically stores these in 'python_repo_structure' and 'typescript_repo_structure'.
+    2. **Gather dependencies:** Analyze `BaseAgent.ts` and see it imports:
+       - `import Event from '../events/Event'`
+       - `import Logger from '../utils/Logger'`
+       - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/events/Event.ts')`
+       - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/utils/Logger.ts')`
 
-    - **YOUR ACTION (Step 3):** Call `get_file_content(repo='google/adk-python', file_path='google/adk/agents/base_agent.py')`.
-      - The tool automatically stores this in 'python_context_files'.
+    3. **Gather patterns:** To understand agent patterns:
+       - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/Agent.ts')` (similar agent file)
+       - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='tests/agents/BaseAgent.test.ts')` (test file)
 
-    - **YOUR ACTION (Step 4):** You determine the equivalent file is `src/agents/BaseAgent.ts`. 
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/BaseAgent.ts')`.
-      - The tool automatically stores this in 'typescript_context_files'.
-
-    - **YOUR ACTION (Step 5 - Comprehensive TypeScript Context):** 
-      - You analyze `BaseAgent.ts` and see it imports:
-        - `import Event from '../events/Event'`
-        - `import Logger from '../utils/Logger'`
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/events/Event.ts')`.
-      - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/utils/Logger.ts')`.
-      - You also gather similar files to understand patterns:
-        - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/agents/Agent.ts')` (similar agent file)
-        - Call `get_file_content(repo='njraladdin/adk-typescript', file_path='src/tests/agents/BaseAgent.test.ts')` (test file for BaseAgent)
-      - All files are automatically stored in 'typescript_context_files'.
-
-    - **YOUR ACTION (Step 6 - Summary):** Provide a brief summary of all the files you've collected:
-      - Commit analyzed: a1b2c3d4
-      - Python files collected: base_agent.py
-      - TypeScript files collected: BaseAgent.ts, Event.ts, Logger.ts, Agent.ts, BaseAgent.test.ts
     ---
     """,
 )
@@ -169,7 +146,7 @@ code_translator_agent = Agent(
     - The full content of those modified Python files
     - The equivalent TypeScript files from the target repository to help you understand the TypeScript project structure and patterns
     - Additional TypeScript files including imports and similar files (like other tests or components) to help you understand dependencies, patterns, and conventions
-    - The full file structure of both repositories to help you locate files and understand the project organization
+    - The TypeScript repository structure to help you locate files and understand the project organization
 
     Your task is to take this commit's changes and accurately port them to the TypeScript codebase, maintaining consistency with the existing TypeScript patterns and conventions.
 
@@ -188,14 +165,20 @@ code_translator_agent = Agent(
       - The context gatherer has collected comprehensive TypeScript context to help you understand the project's patterns and conventions.
     ---
 
-    **COMMIT INFORMATION**
-    
-    Commit SHA: {gathered_context}
+    **AVAILABLE CONTEXT**
 
+    **Commit Information:**
+    {commit_context}
+
+    **TypeScript Repository Structure:**
+    {typescript_repo_structure}
+
+    **TypeScript Context Files:**
+    {typescript_files}
         
     **YOUR TASK STEPS**
 
-    All necessary context has been gathered and loaded into the session state from a JSON file. You must work with ONLY the provided context. You must:
+    All necessary context has been gathered and loaded into the session state. You must work with ONLY the provided context. You must:
 
     1. **ANALYZE:** Thoroughly analyze the Python changes and TypeScript codebase:
        - Study the commit diff to understand exactly what changed in the Python code
