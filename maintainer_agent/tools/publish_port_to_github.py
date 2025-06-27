@@ -1,10 +1,13 @@
 from typing import Optional, Dict, Any
 from google.adk.tools import ToolContext
-from .create_issue import create_issue
-from .create_branch import create_branch
+from ..github_api_utils import (
+    fetch_commit_message, 
+    fetch_commit_diff_data, 
+    create_issue, 
+    create_branch, 
+    create_pull_request
+)
 from .commit_and_push_changes import commit_and_push_changes
-from .create_pull_request import create_pull_request
-from ..tools.get_commit_diff import get_commit_diff
 
 def publish_port_to_github(
     commit_sha: str,
@@ -50,25 +53,23 @@ def publish_port_to_github(
     try:
         # Step 1: Get commit information for titles and descriptions
         print(f"[PUBLISH_PORT_TO_GITHUB] Step 1: Fetching commit information")
-        commit_result = get_commit_diff(
-            username="google",
-            repo="adk-python", 
-            commit_sha=commit_sha,
-            tool_context=tool_context
-        )
         
-        if not commit_result.get("success", False):
+        # Get commit message
+        commit_message = fetch_commit_message(commit_sha)
+        
+        # Get diff data for changed files
+        diff_result = fetch_commit_diff_data(commit_sha)
+        
+        if 'error' in diff_result:
             return {
                 "success": False,
-                "message": f"Failed to fetch commit information: {commit_result.get('message', 'Unknown error')}",
+                "message": f"Failed to fetch commit information: {diff_result.get('error', 'Unknown error')}",
                 "error_step": "fetch_commit_info",
                 "steps_completed": steps_completed
             }
         
-        commit_info = commit_result.get("commit_info", {})
         short_sha = commit_sha[:7]
-        commit_message = commit_info.get("message", "Unknown commit")
-        changed_files = commit_result.get("changed_files", [])
+        changed_files = diff_result.get("changed_files", [])
         
         # Extract a brief description from commit message (first line)
         brief_description = commit_message.split('\n')[0].strip()
@@ -95,11 +96,9 @@ This issue tracks the port of the above Python ADK commit to TypeScript.
 """
         
         issue_result = create_issue(
-            username=username,
-            repo=repo,
+            repo=f"{username}/{repo}",
             title=issue_title,
-            body=issue_body,
-            tool_context=tool_context
+            body=issue_body
         )
         
         if issue_result.get("status") != "success":
@@ -119,11 +118,9 @@ This issue tracks the port of the above Python ADK commit to TypeScript.
         branch_name = f"port-{short_sha}"
         
         branch_result = create_branch(
-            username=username,
-            repo=repo,
+            repo=f"{username}/{repo}",
             branch_name=branch_name,
-            base_branch=base_branch,
-            tool_context=tool_context
+            base_branch=base_branch
         )
         
         if branch_result.get("status") != "success":
@@ -191,14 +188,12 @@ Related to #{issue_number}
 """
         
         pr_result = create_pull_request(
-            username=username,
-            repo=repo,
+            repo=f"{username}/{repo}",
             title=pr_title,
             body=pr_body,
             head_branch=branch_name,
             base_branch=base_branch,
-            issue_number=issue_number,
-            tool_context=tool_context
+            issue_number=issue_number
         )
         
         if pr_result.get("status") != "success":

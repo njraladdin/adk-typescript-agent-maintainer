@@ -10,7 +10,166 @@ import requests
 import re
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TypedDict, Literal
+
+
+class FileDiff(TypedDict):
+    """Represents a structured diff for a file"""
+    file: str
+    changed_lines: int
+    excerpt: List[str]
+    additions: int
+    deletions: int
+    is_binary: bool
+    status: Literal['modified', 'added', 'deleted', 'renamed']
+
+
+class CommitDiffResponse(TypedDict):
+    """Represents a structured commit diff"""
+    files: List[FileDiff]
+    total_additions: int
+    total_deletions: int
+    total_files_changed: int
+
+
+def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
+    """
+    Parse a raw git diff into a structured format.
+    
+    Args:
+        raw_diff: The raw diff string from GitHub API
+        max_excerpt_lines: Maximum number of lines to include in the excerpt
+    
+    Returns:
+        Structured diff object
+    """
+    files: List[FileDiff] = []
+    total_additions = 0
+    total_deletions = 0
+    
+    # Split the diff by file sections (diff --git lines)
+    file_patterns = raw_diff.split('\ndiff --git ')
+    
+    # First element might be empty or contain some header information
+    file_sections = ['diff --git ' + file_patterns[0]] if file_patterns[0].strip() else []
+    
+    # Add the rest of the file sections with the diff --git prefix restored
+    file_sections.extend(f'diff --git {pattern}' for pattern in file_patterns[1:])
+    
+    for section in file_sections:
+        if not section.startswith('diff --git'):
+            continue
+        
+        # Extract filenames from the section
+        file_name_match = re.search(r'diff --git a/(.*?) b/(.*?)(\n|$)', section)
+        if not file_name_match:
+            continue
+        
+        from_file = file_name_match.group(1)
+        to_file = file_name_match.group(2)
+        
+        # Determine file status
+        status: Literal['modified', 'added', 'deleted', 'renamed'] = 'modified'
+        file_name = to_file
+        
+        if 'new file mode' in section:
+            status = 'added'
+            file_name = to_file
+        elif 'deleted file mode' in section:
+            status = 'deleted'
+            file_name = from_file
+        elif from_file != to_file:
+            status = 'renamed'
+            file_name = to_file
+        
+        is_binary = 'Binary files' in section or 'GIT binary patch' in section
+        
+        if is_binary:
+            files.append({
+                'file': file_name,
+                'changed_lines': 0,
+                'excerpt': ['Binary file changed'],
+                'additions': 0,
+                'deletions': 0,
+                'is_binary': True,
+                'status': status
+            })
+            continue
+        
+        # Extract the actual diff content - everything after the first @@ line
+        hunks = re.findall(r'@@.*?@@.*?(?=(?:\n@@|\n?$))', section, re.DOTALL)
+        
+        # If no hunks were found, try a different approach
+        diff_content = ''
+        if not hunks:
+            header_end_index = section.find('\n+++')
+            if header_end_index != -1:
+                first_hunk_index = section.find('@@', header_end_index)
+                if first_hunk_index != -1:
+                    diff_content = section[first_hunk_index:]
+        else:
+            diff_content = '\n'.join(hunks)
+        
+        if not diff_content:
+            continue
+        
+        # Process the diff content
+        lines = [line for line in diff_content.split('\n') if line]
+        
+        # Count additions and deletions
+        added_lines = sum(1 for line in lines if line.startswith('+'))
+        removed_lines = sum(1 for line in lines if line.startswith('-'))
+        
+        total_additions += added_lines
+        total_deletions += removed_lines
+        
+        # Get changed lines (lines starting with + or -)
+        changed_lines = [line for line in lines if line.startswith('+') or line.startswith('-')]
+        
+        # Maximum line length to include in excerpt
+        MAX_LINE_LENGTH = 500
+        
+        # Create the excerpt with trimmed lines
+        excerpt: List[str] = []
+        
+        # Check if we have any very large lines in this file
+        has_very_large_lines = any(len(line) > 3000 for line in changed_lines)
+        
+        # Process all changed lines up to max_excerpt_lines
+        for line in changed_lines[:max_excerpt_lines]:
+            if len(line) <= MAX_LINE_LENGTH:
+                excerpt.append(line)
+            else:
+                # For long lines, trim them and add information about how much is trimmed
+                prefix = line[0]  # Keep the + or - prefix
+                remaining_chars = len(line) - MAX_LINE_LENGTH
+                
+                # Format large numbers with commas for readability
+                formatted_length = f"{len(line):,}"
+                formatted_remaining = f"{remaining_chars:,}"
+                
+                excerpt.append(f"{prefix}{line[1:MAX_LINE_LENGTH]}... [trimmed {formatted_remaining} chars from {formatted_length} char line]")
+        
+        # Add ellipsis if there are more lines than what we included
+        if len(changed_lines) > max_excerpt_lines:
+            excerpt.append(f"... ({len(changed_lines) - max_excerpt_lines} more lines)")
+        
+        files.append({
+            'file': file_name,
+            'changed_lines': added_lines + removed_lines,
+            'excerpt': excerpt,
+            'additions': added_lines,
+            'deletions': removed_lines,
+            'is_binary': False,
+            'status': status
+        })
+    
+    return {
+        'files': files,
+        'total_additions': total_additions,
+        'total_deletions': total_deletions,
+        'total_files_changed': len(files)
+    }
 
 
 def get_github_token() -> Optional[str]:
@@ -21,6 +180,74 @@ def get_github_token() -> Optional[str]:
         Optional[str]: GitHub token if found, None otherwise
     """
     return os.getenv("GITHUB_TOKEN")
+
+
+def fetch_commit_message(commit_sha: str, repo: str = "google/adk-python") -> str:
+    """
+    Fetch commit message from a GitHub repository.
+    
+    Args:
+        commit_sha: The commit SHA to fetch message for
+        repo: Repository in format 'owner/repo' (default: google/adk-python)
+        
+    Returns:
+        Commit message string
+    """
+    print(f"[FETCH_COMMIT_MESSAGE] Fetching commit message for {commit_sha} from {repo}")
+    
+    github_token = get_github_token()
+    headers = {
+        "Accept": "application/vnd.github.v3+json"
+    }
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+    
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}/commits/{commit_sha}",
+            headers=headers
+        )
+        response.raise_for_status()
+        commit_data = response.json()
+        return commit_data.get('commit', {}).get('message', 'Unknown commit')
+    except Exception as e:
+        print(f"[FETCH_COMMIT_MESSAGE] Error: {e}")
+        return "Unknown commit"
+
+
+def fetch_commit_diff_raw(repo: str, commit_sha: str) -> str:
+    """
+    Fetch raw commit diff from GitHub API.
+    
+    Args:
+        repo: Repository in format 'owner/repo'
+        commit_sha: The commit hash to get the diff for
+        
+    Returns:
+        Raw diff string from GitHub API
+        
+    Raises:
+        requests.exceptions.RequestException: If the request fails
+    """
+    print(f"[FETCH_COMMIT_DIFF_RAW] Fetching commit diff for {commit_sha} from {repo}")
+    
+    github_token = get_github_token()
+    headers = {
+        "Accept": "application/vnd.github.v3.diff"
+    }
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+    
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}/commits/{commit_sha}",
+            headers=headers
+        )
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"[FETCH_COMMIT_DIFF_RAW] Error fetching commit diff: {e}")
+        raise
 
 
 def fetch_commit_diff_data(commit_sha: str) -> Dict[str, Any]:
