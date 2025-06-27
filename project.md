@@ -38,7 +38,7 @@ hosted : both agent and ui hosted on google cloud
 automatic monitoring: automatically monitor newest commits, send them to agent
 
 TODO: 
-- make file reading faster by reading files from the cloned repo not from the api 
+- make file reading faster by reading files from the cloned repo not from the api, done 
 
 - troubleshoot: submit a few commits until it can port it perfectly:
 

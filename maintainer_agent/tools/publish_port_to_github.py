@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from pathlib import Path
 from google.adk.tools import ToolContext
 from ..github_api_utils import (
     fetch_commit_message, 
@@ -7,7 +8,16 @@ from ..github_api_utils import (
     create_branch, 
     create_pull_request
 )
-from .commit_and_push_changes import commit_and_push_changes
+# Import the individual git CLI utility functions for commit and push functionality
+from ..git_cli_utils import (
+    switch_branch,
+    get_changed_files,
+    stage_changes,
+    commit_changes,
+    push_changes
+)
+from ..workspace_utils import get_typescript_repo_path
+
 
 def publish_port_to_github(
     commit_sha: str,
@@ -139,33 +149,134 @@ This issue tracks the port of the above Python ADK commit to TypeScript.
         print(f"[PUBLISH_PORT_TO_GITHUB] Step 4: Committing and pushing changes")
         commit_message_full = f"Port {brief_description} from Python ADK commit {short_sha}"
         
-        commit_result = commit_and_push_changes(
-            commit_message=commit_message_full,
-            branch_name=branch_name,
-            author_name="ADK TypeScript Porter",
-            author_email="noreply@github.com",
-            tool_context=tool_context
-        )
+        # Get the TypeScript repository path from the tool context state or use the default path
+        if tool_context and 'typescript_repo_path' in tool_context.state:
+            typescript_repo_path = Path(tool_context.state['typescript_repo_path'])
+            print(f"[PUBLISH_PORT_TO_GITHUB] Using TypeScript repository path from tool context: {typescript_repo_path}")
+        else:
+            # Use the default path
+            typescript_repo_path = get_typescript_repo_path()
+            print(f"[PUBLISH_PORT_TO_GITHUB] Using default TypeScript repository path: {typescript_repo_path}")
         
-        if not commit_result.get("success", False):
+        # Initialize variables for git operations
+        stdout_parts = []
+        stderr_parts = []
+        files_changed_local: List[str] = []
+        commit_sha_local = ""
+        
+        try:
+            # Ensure the TypeScript repository directory exists and is a git repo
+            if not typescript_repo_path.exists():
+                raise FileNotFoundError(f"TypeScript repository directory {typescript_repo_path} does not exist. Please run setup_agent_workspace first.")
+            
+            if not (typescript_repo_path / ".git").exists():
+                raise FileNotFoundError(f"No git repository found at {typescript_repo_path}. Please ensure the repository is properly cloned.")
+            
+            # Step 4a: Switch to the correct branch
+            print(f"[PUBLISH_PORT_TO_GITHUB] Switching to branch: {branch_name}")
+            branch_success, branch_msg = switch_branch(typescript_repo_path, branch_name)
+            if not branch_success:
+                return {
+                    "success": False,
+                    "message": f"Failed to switch to branch '{branch_name}': {branch_msg}",
+                    "error_step": "switch_branch",
+                    "steps_completed": steps_completed,
+                    "issue_number": issue_number,
+                    "branch_name": branch_name
+                }
+            stdout_parts.append(branch_msg)
+            
+            # Step 4b: Get list of changed files
+            print(f"[PUBLISH_PORT_TO_GITHUB] Getting list of changed files")
+            files_success, files_changed_local = get_changed_files(typescript_repo_path)
+            if not files_success:
+                stderr_parts.append("Failed to get list of changed files")
+            
+            if not files_changed_local:
+                print("[PUBLISH_PORT_TO_GITHUB] No changes detected to commit")
+                return {
+                    "success": True,
+                    "message": "No changes to commit - port completed but no local changes found",
+                    "issue_number": issue_number,
+                    "branch_name": branch_name,
+                    "commit_sha_local": "",
+                    "pr_number": 0,
+                    "pr_url": "",
+                    "steps_completed": steps_completed + ["no_changes_to_commit"]
+                }
+            
+            print(f"[PUBLISH_PORT_TO_GITHUB] Found {len(files_changed_local)} changed files")
+            for file in files_changed_local:
+                print(f"[PUBLISH_PORT_TO_GITHUB]   - {file}")
+            
+            # Step 4c: Stage all changes
+            print("[PUBLISH_PORT_TO_GITHUB] Staging changes")
+            stage_success, stage_msg = stage_changes(typescript_repo_path)
+            if not stage_success:
+                return {
+                    "success": False,
+                    "message": f"Failed to stage changes: {stage_msg}",
+                    "error_step": "stage_changes",
+                    "steps_completed": steps_completed,
+                    "issue_number": issue_number,
+                    "branch_name": branch_name
+                }
+            stdout_parts.append(stage_msg)
+            
+            # Step 4d: Commit changes
+            print("[PUBLISH_PORT_TO_GITHUB] Committing changes")
+            commit_success, commit_msg, commit_sha_local = commit_changes(
+                typescript_repo_path, 
+                commit_message_full,
+                "ADK TypeScript Porter",
+                "noreply@github.com"
+            )
+            if not commit_success:
+                return {
+                    "success": False,
+                    "message": f"Failed to commit changes: {commit_msg}",
+                    "error_step": "commit_changes",
+                    "steps_completed": steps_completed,
+                    "issue_number": issue_number,
+                    "branch_name": branch_name
+                }
+            stdout_parts.append(commit_msg)
+            
+            # Step 4e: Push to remote
+            print(f"[PUBLISH_PORT_TO_GITHUB] Pushing to remote branch: {branch_name}")
+            push_success, push_msg = push_changes(typescript_repo_path, branch_name)
+            if not push_success:
+                return {
+                    "success": False,
+                    "message": f"Failed to push changes: {push_msg}",
+                    "error_step": "push_changes",
+                    "steps_completed": steps_completed,
+                    "issue_number": issue_number,
+                    "branch_name": branch_name,
+                    "commit_sha_local": commit_sha_local
+                }
+            stdout_parts.append(push_msg)
+            
+            print(f"[PUBLISH_PORT_TO_GITHUB] Successfully committed and pushed {len(files_changed_local)} files")
+            print(f"[PUBLISH_PORT_TO_GITHUB] Commit SHA: {commit_sha_local}")
+            
+        except Exception as git_error:
             return {
                 "success": False,
-                "message": f"Failed to commit and push: {commit_result.get('message', 'Unknown error')}",
-                "error_step": "commit_and_push",
+                "message": f"Error during git operations: {str(git_error)}",
+                "error_step": "git_operations",
                 "steps_completed": steps_completed,
                 "issue_number": issue_number,
                 "branch_name": branch_name
             }
         
-        commit_sha_local = commit_result.get("commit_sha", "")
         steps_completed.append("commit_and_push")
-        print(f"[PUBLISH_PORT_TO_GITHUB] Committed changes: {commit_sha_local[:7] if commit_sha_local else 'unknown'}")
         
         # Step 5: Create pull request
         print(f"[PUBLISH_PORT_TO_GITHUB] Step 5: Creating pull request")
         pr_title = f"Port {brief_description} from Python ADK commit {short_sha}"
         
-        # Create a comprehensive PR body (this would typically come from coder_agent, but we'll create a basic one)
+        # Create a comprehensive PR body
         pr_body = f"""## Overview
 This PR ports the changes from Python ADK commit [`{short_sha}`](https://github.com/google/adk-python/commit/{commit_sha}) to TypeScript.
 
@@ -180,8 +291,8 @@ This PR ports the changes from Python ADK commit [`{short_sha}`](https://github.
 {f'- ... and {len(changed_files) - 10} more files' if len(changed_files) > 10 else ''}
 
 ## Testing
-- ✅ TypeScript compilation successful
-- ✅ All relevant tests passing
+- TypeScript compilation successful
+- All relevant tests passing
 
 
 Related to #{issue_number}
