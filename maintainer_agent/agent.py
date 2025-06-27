@@ -22,7 +22,7 @@ from .tools.publish_port_to_github import publish_port_to_github
 
 
 # --- Callback Imports ---
-from .callbacks import save_gathered_context, load_gathered_context, setup_agent_workspace, gather_commit_context
+from .callbacks import setup_agent_workspace
 
 # ==============================================================================
 # 1. DEFINE THE STRUCTURED DATA MODELS
@@ -73,9 +73,6 @@ main_agent = Agent(
     
     # Add the setup_agent_workspace callback
     before_agent_callback=setup_agent_workspace,
-    after_agent_callback=save_gathered_context,
-   #     before_agent_callback=gather_commit_context,
-   #  after_agent_callback=save_gathered_context,
     description=(
         "Main agent for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
         "Handles the complete adaptive workflow: initial context gathering, code translation with adaptive context fetching, building, testing, and publishing to GitHub."
