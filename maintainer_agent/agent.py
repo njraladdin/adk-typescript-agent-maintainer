@@ -34,18 +34,6 @@ class CommitInfo(BaseModel):
     diff: str = Field(description="The diff output of the commit.")
     changed_files: List[str] = Field(description="A list of file paths that were changed in the commit.")
 
-class GatheredContext(BaseModel):
-    """
-    A structured data model to hold all the context required for porting
-    a commit from Python to TypeScript.
-    """
-    commit_info: CommitInfo = Field(description="Detailed information about the source commit.")
-    python_repo_structure: Dict = Field(description="The file and directory structure of the Python repository.")
-    typescript_repo_structure: Dict = Field(description="The file and directory structure of the TypeScript repository.")
-    source_python_files: Dict[str, str] = Field(description="A dictionary mapping the path of each changed Python file to its full content.")
-    equivalent_typescript_files: Dict[str, str] = Field(description="A dictionary mapping the path of equivalent TypeScript files to their full content.")
-    additional_context_files: Dict[str, str] = Field(description="A dictionary for any other files that were fetched for additional context.")
-
 class AgentInput(BaseModel):
     """Input model for both Coder and Maintainer agents."""
     commit_id: str = Field(description="The full SHA of the commit to be ported from Python to TypeScript.")

@@ -33,17 +33,7 @@ progress:
 - ui agent: submit a single commit on a UI, display steps taken by agent on a web ui.
 
 
-focused and simpler : make everything more focused. a lot of stuff here doesn't need to be part of agent, just simple workflow to run before or after the agent 
-
-        simplfy agents by extracting workflows into callback functions 
-
-        the context agent doesnt need to fetch the repos structures and commit information and get file content of each changed file.  should be a before agent callback. main goal is to decide which relevant typescirpt fiels to fetch based on repo file sturctures and commit diff and updated files 
-
-        make it able to fetch more files at once, saves time for faster testing OR feed all files to gemini flash lite and output list of relevant files 
-
-        for maintainer agent, most steps doesnt require an agent, but simple flow in before agent callback (or a single function by the agent). simplify.
-
-        after simplifying the 3 agents in project, see what can be merged while staying easily testable 
+focused and simpler : make everything more focused. a lot of stuff here doesn't need to be seperate agent 
 
 TODO: 
 - make github stuff happen after porting in one block instead of some github stuff happeneing before we port nad some after we port the commit, done 
