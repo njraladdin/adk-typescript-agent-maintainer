@@ -273,8 +273,9 @@ def run_tests(project_path: Path, test_names: List[str]) -> Dict[str, Any]:
         success = result.returncode == 0
         message = "Tests completed successfully" if success else f"Tests failed with exit code {result.returncode}"
         
-        # Parse test results
-        test_results = _parse_test_output(result.stdout or "")
+        # Parse test results from both stdout and stderr
+        combined_output = (result.stdout or "") + "\n" + (result.stderr or "")
+        test_results = _parse_test_output(combined_output)
         
         return {
             "success": success,
@@ -427,34 +428,50 @@ def _parse_test_output(stdout: str) -> Dict[str, Any]:
         for line in lines:
             line = line.strip()
             
-            # Look for common test output patterns (Jest, Mocha, etc.)
-            if 'Tests:' in line or 'test' in line.lower():
-                # Try to extract numbers from test summary lines
-                if 'passed' in line.lower():
-                    import re
-                    numbers = re.findall(r'\d+', line)
-                    if numbers:
-                        test_results["passed_tests"] = int(numbers[0])
+            # Jest-specific patterns
+            # Look for "Tests: X passed, Y failed, Z total" format
+            if line.startswith('Tests:'):
+                import re
+                # Extract numbers with their context
+                passed_match = re.search(r'(\d+)\s+passed', line)
+                failed_match = re.search(r'(\d+)\s+failed', line) 
+                total_match = re.search(r'(\d+)\s+total', line)
+                skipped_match = re.search(r'(\d+)\s+skipped', line)
                 
-                if 'failed' in line.lower():
-                    import re
-                    numbers = re.findall(r'\d+', line)
-                    if numbers:
-                        test_results["failed_tests"] = int(numbers[0])
+                if passed_match:
+                    test_results["passed_tests"] = int(passed_match.group(1))
+                if failed_match:
+                    test_results["failed_tests"] = int(failed_match.group(1))
+                if total_match:
+                    test_results["total_tests"] = int(total_match.group(1))
+                if skipped_match:
+                    test_results["skipped_tests"] = int(skipped_match.group(1))
             
-            # Look for test file references
-            if '.test.' in line or '.spec.' in line:
-                # Extract test file names
+            # Look for "Test Suites: X passed, Y total" format
+            elif line.startswith('Test Suites:'):
+                # This gives us info about test suites, but we focus on individual tests
+                pass
+            
+            # Look for PASS/FAIL indicators with test file names
+            elif line.startswith('PASS ') or line.startswith('FAIL '):
+                import re
+                # Extract test file names from PASS/FAIL lines
+                matches = re.findall(r'[\w/.-]+\.(?:test|spec)\.\w+', line)
+                test_results["test_files"].extend(matches)
+            
+            # Look for test file references in other contexts
+            elif '.test.' in line or '.spec.' in line:
                 import re
                 matches = re.findall(r'[\w/.-]+\.(?:test|spec)\.\w+', line)
                 test_results["test_files"].extend(matches)
             
             # Look for error indicators
-            if any(keyword in line.lower() for keyword in ['error:', 'failed:', 'exception:']):
+            elif any(keyword in line.lower() for keyword in ['error:', 'failed:', 'exception:', '✕', '×']):
                 test_results["errors"].append(line)
         
-        # Calculate total tests
-        test_results["total_tests"] = test_results["passed_tests"] + test_results["failed_tests"] + test_results["skipped_tests"]
+        # If we didn't get total_tests from parsing, calculate it
+        if test_results["total_tests"] == 0:
+            test_results["total_tests"] = test_results["passed_tests"] + test_results["failed_tests"] + test_results["skipped_tests"]
         
         # Remove duplicates from test files
         test_results["test_files"] = list(set(test_results["test_files"]))

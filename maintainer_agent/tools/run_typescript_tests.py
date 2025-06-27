@@ -33,16 +33,14 @@ def run_typescript_tests(
             - repo_path: str (Path to the TypeScript repository)
             - test_results: Dict (Parsed test results if available)
     """
-    print(f"[RUN_TYPESCRIPT_TESTS] Running tests: {', '.join(test_names)}")
+    print(f"[RUN_TYPESCRIPT_TESTS] Input: test_names={test_names}")
     
     try:
         # Get the TypeScript repository path
         if tool_context and 'typescript_repo_path' in tool_context.state:
             typescript_repo_path = Path(tool_context.state['typescript_repo_path'])
-            print(f"[RUN_TYPESCRIPT_TESTS] Using TypeScript repository path from tool context: {typescript_repo_path}")
         else:
             typescript_repo_path = get_typescript_repo_path()
-            print(f"[RUN_TYPESCRIPT_TESTS] Using default TypeScript repository path: {typescript_repo_path}")
         
         # Check if the repository is ready
         if not is_typescript_repo_ready():
@@ -55,11 +53,8 @@ def run_typescript_tests(
                 "repo_path": str(typescript_repo_path),
                 "test_results": {}
             }
-            print(f"[RUN_TYPESCRIPT_TESTS] : output status=error, message={error_result['message']}")
+            print(f"[RUN_TYPESCRIPT_TESTS] Output: status=error, message={error_result['message']}")
             return error_result
-        
-        # Jest will auto-discover tests by filename, so just pass the test names directly
-        print(f"[RUN_TYPESCRIPT_TESTS] Test names for Jest: {test_names}")
         
         # Run the tests using workspace utility
         test_result = run_tests(typescript_repo_path, test_names)
@@ -68,54 +63,35 @@ def run_typescript_tests(
         result = {
             "status": "success" if test_result["success"] else "error",
             "message": test_result["message"],
-            "stdout": test_result["stdout"],
-            "stderr": test_result["stderr"],
+            "stdout": test_result["stdout"].encode('ascii', errors='replace').decode('ascii') if test_result["stdout"] else "",
+            "stderr": test_result["stderr"].encode('ascii', errors='replace').decode('ascii') if test_result["stderr"] else "",
             "exit_code": test_result["exit_code"],
             "repo_path": str(typescript_repo_path),
             "test_results": test_result["test_results"]
         }
         
-        # Log the output
+        # Log the final output
         status = "success" if test_result["success"] else "error"
-        print(f"[RUN_TYPESCRIPT_TESTS] : output status={status}, exit_code={test_result['exit_code']}")
-        
-        # Log test results summary
         test_results = test_result["test_results"]
-        print(f"[RUN_TYPESCRIPT_TESTS] : test summary: {test_results.get('passed_tests', 0)} passed, {test_results.get('failed_tests', 0)} failed, {test_results.get('skipped_tests', 0)} skipped, {test_results.get('total_tests', 0)} total")
         
-        # Log test files that were run
-        if test_results.get('test_files'):
-            print(f"[RUN_TYPESCRIPT_TESTS] : test files run: {', '.join(test_results.get('test_files', []))}")
+        # Log the actual test output for debugging
+        if test_result["stderr"]:
+            print(f"[RUN_TYPESCRIPT_TESTS] Test Results:")
+            for line in test_result["stderr"].splitlines():
+                print(f"  {line}")
         
         if status == "success":
-            print(f"[RUN_TYPESCRIPT_TESTS] : success message={test_result['message']}")
-            # Print a sample of the stdout to show test results
-            if test_result['stdout']:
-                stdout_preview = '\n'.join(test_result['stdout'].splitlines()[:20])  # First 20 lines
-                print(f"[RUN_TYPESCRIPT_TESTS] : stdout preview=\n{stdout_preview}")
-                if len(test_result['stdout'].splitlines()) > 20:
-                    print(f"[RUN_TYPESCRIPT_TESTS] : stdout truncated... (showing first 20 lines of {len(test_result['stdout'].splitlines())} total)")
+            print(f"[RUN_TYPESCRIPT_TESTS] Output: status=success, passed={test_results.get('passed_tests', 0)}, failed={test_results.get('failed_tests', 0)}, total={test_results.get('total_tests', 0)}")
         else:
-            print(f"[RUN_TYPESCRIPT_TESTS] : error message={test_result['message']}")
-            print(f"[RUN_TYPESCRIPT_TESTS] : stderr=\n{test_result['stderr']}")
-            
-            # For errors, also print the stdout which often contains test failure details
-            if test_result['stdout']:
-                stdout_preview = '\n'.join(test_result['stdout'].splitlines()[:30])  # First 30 lines for errors
-                print(f"[RUN_TYPESCRIPT_TESTS] : stdout preview=\n{stdout_preview}")
-                if len(test_result['stdout'].splitlines()) > 30:
-                    print(f"[RUN_TYPESCRIPT_TESTS] : stdout truncated... (showing first 30 lines of {len(test_result['stdout'].splitlines())} total)")
-            
-            # Print any error messages extracted from test results
-            if test_results.get('errors'):
-                print(f"[RUN_TYPESCRIPT_TESTS] : test errors=\n" + '\n'.join(test_results.get('errors', [])))
+            print(f"[RUN_TYPESCRIPT_TESTS] Output: status=error, exit_code={test_result['exit_code']}, message={test_result['message']}")
         
         return result
         
     except Exception as error:
+        error_message = str(error).encode('ascii', errors='replace').decode('ascii')
         error_result = {
             "status": "error",
-            "message": f"Unexpected error during test execution: {str(error)}",
+            "message": f"Unexpected error during test execution: {error_message}",
             "stdout": "",
             "stderr": "",
             "exit_code": -1,
@@ -123,7 +99,7 @@ def run_typescript_tests(
             "test_results": {}
         }
         
-        print(f"[RUN_TYPESCRIPT_TESTS] : output status=error, message={error_result['message']}")
+        print(f"[RUN_TYPESCRIPT_TESTS] Output: status=error, message={error_result['message']}")
         return error_result
 
 
@@ -133,7 +109,7 @@ if __name__ == "__main__":
         print("Testing run_typescript_tests tool...")
         
         # Example test names
-        test_names = ["example.test.ts"]
+        test_names = ["callback.test.ts"]
         
         result = run_typescript_tests(test_names)
         
