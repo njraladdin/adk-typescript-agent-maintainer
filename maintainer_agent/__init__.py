@@ -8,9 +8,8 @@ from . import agent
 from . import tools
 from . import constants
 from . import workspace_utils
-from . import git_utils
 from . import git_cli_utils
 from . import github_api_utils
 from . import callbacks
 
-__all__ = ["agent", "tools", "constants", "workspace_utils", "git_utils", "git_cli_utils", "github_api_utils", "callbacks"]
+__all__ = ["agent", "tools", "constants", "workspace_utils", "git_cli_utils", "github_api_utils", "callbacks"]

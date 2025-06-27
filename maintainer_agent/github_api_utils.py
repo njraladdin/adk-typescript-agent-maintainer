@@ -8,6 +8,8 @@ commit data, repository structure, and file content from remote repositories.
 import os
 import requests
 import re
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Dict, Any, List
 
 
@@ -185,6 +187,122 @@ def fetch_file_content(repo: str, file_path: str, branch: str = "main") -> str:
     except Exception as e:
         print(f"[FETCH_FILE_CONTENT] Error fetching {file_path} from {repo}: {e}")
         return f"Error fetching file: {e}"
+
+
+def fetch_file_with_metadata(repo: str, file_path: str, branch: str, github_token: str) -> tuple[str, Dict[str, Any]]:
+    """
+    Fetch a single file with full metadata from GitHub API.
+    
+    Args:
+        repo: Repository in format 'owner/repo'
+        file_path: Path to the file
+        branch: Branch name
+        github_token: GitHub authentication token
+    
+    Returns:
+        tuple: (file_path, result_dict) where result_dict contains either success or error info
+    """
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {
+        'Authorization': f'token {github_token}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    params = {'ref': branch} if branch else {}
+    
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Handle file content decoding
+            if data.get('encoding') == 'base64':
+                content = base64.b64decode(data['content']).decode('utf-8')
+            else:
+                content = data.get('content', '')
+            
+            # Create metadata structure
+            metadata = {
+                'name': file_path.split('/')[-1],
+                'path': file_path,
+                'size': len(content.encode('utf-8')),
+                'type': 'file',
+                'sha': data.get('sha', ''),
+                'encoding': data.get('encoding', ''),
+                'url': data.get('url', ''),
+                'html_url': data.get('html_url', ''),
+                'git_url': data.get('git_url', ''),
+                'download_url': data.get('download_url', '')
+            }
+            
+            return file_path, {
+                'status': 'success',
+                'content': content,
+                'metadata': metadata
+            }
+        else:
+            return file_path, {
+                'status': 'error',
+                'message': f"HTTP {response.status_code}: {response.text}"
+            }
+            
+    except Exception as e:
+        return file_path, {
+            'status': 'error',
+            'message': f"Exception fetching {file_path}: {str(e)}"
+        }
+
+
+def fetch_multiple_files_content(repo: str, file_paths: List[str], branch: str = "main") -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch multiple files concurrently from a GitHub repository using ThreadPoolExecutor.
+    
+    Args:
+        repo: Repository in format 'owner/repo'
+        file_paths: List of file paths to fetch
+        branch: Branch name (default: main)
+        
+    Returns:
+        Dict mapping file_path to result dict containing content and metadata
+    """
+    print(f"[FETCH_MULTIPLE_FILES] Fetching {len(file_paths)} files concurrently from {repo}")
+    
+    github_token = get_github_token()
+    if not github_token:
+        print("[FETCH_MULTIPLE_FILES] Error: GitHub token not found")
+        return {file_path: {'status': 'error', 'message': 'GitHub token not found'} for file_path in file_paths}
+    
+    file_results = {}
+    
+    # Use ThreadPoolExecutor for concurrent fetching
+    with ThreadPoolExecutor(max_workers=min(len(file_paths), 10)) as executor:
+        # Submit all tasks
+        future_to_file = {
+            executor.submit(fetch_file_with_metadata, repo, file_path, branch, github_token): file_path
+            for file_path in file_paths
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_file):
+            file_path = future_to_file[future]
+            try:
+                _, result = future.result()
+                file_results[file_path] = result
+                
+                if result['status'] != 'success':
+                    print(f"[FETCH_MULTIPLE_FILES] Failed to fetch {file_path}: {result['message']}")
+                    
+            except Exception as exc:
+                file_results[file_path] = {
+                    'status': 'error',
+                    'message': f"Exception occurred: {str(exc)}"
+                }
+                print(f"[FETCH_MULTIPLE_FILES] Exception fetching {file_path}: {exc}")
+    
+    successful = sum(1 for r in file_results.values() if r['status'] == 'success')
+    print(f"[FETCH_MULTIPLE_FILES] Completed: {successful}/{len(file_paths)} files fetched successfully")
+    
+    return file_results
 
 
 def create_issue(repo: str, title: str, body: str) -> Dict[str, Any]:

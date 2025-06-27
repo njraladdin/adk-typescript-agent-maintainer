@@ -11,7 +11,8 @@ from google.adk.agents import Agent
 from google.adk.tools import agent_tool
 
 # --- Coder Agent Tool Imports ---
-from .tools.get_file_content import get_file_content, get_files_content
+from .tools.get_file_content import get_file_content
+from .tools.get_files_content import get_files_content
 from .tools.write_local_file import write_local_file
 from .tools.build_typescript_project import build_typescript_project
 from .tools.run_typescript_tests import run_typescript_tests
@@ -60,7 +61,8 @@ initial_context_gatherer_agent = Agent(
     tools=[get_files_content],
     before_agent_callback=gather_commit_context,
     after_agent_callback=save_gathered_context,
-    
+        input_schema=AgentInput,
+
     instruction="""
     You are an initial context gatherer. Your job is simple: analyze the commit and fetch the most obviously relevant TypeScript files in one batch.
 
@@ -114,7 +116,6 @@ main_agent = Agent(
     model="gemini-2.5-flash",
     
     # Add the input schema for proper tool integration
-    input_schema=AgentInput,
     
     tools=[
         context_gatherer_tool,
@@ -203,8 +204,8 @@ main_agent = Agent(
     # STEP 3: Write translated files with full content
     write_local_file(
         file_path="src/agents/BaseAgent.ts",
-        content='''import { EventEmitter } from '../events/EventEmitter';
-import { Logger } from '../utils/Logger';
+        content='''import  EventEmitter  from '../events/EventEmitter';
+import  Logger  from '../utils/Logger';
 
 export class BaseAgent extends EventEmitter {
     private logger: Logger;
@@ -217,7 +218,7 @@ export class BaseAgent extends EventEmitter {
     
     processEvent(event: any): boolean {
         // CHANGED: info -> debug (from Python commit)
-        this.logger.debug(`Processing: ${event}`);
+        this.logger.debug(`Processing: $event`);
         this.eventCount += 1;  // NEW: Added from Python commit
         return true;
     }

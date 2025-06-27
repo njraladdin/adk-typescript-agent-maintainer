@@ -23,21 +23,31 @@ from .github_api_utils import fetch_commit_diff_data, fetch_repo_structure, fetc
 def gather_commit_context(callback_context: CallbackContext) -> Optional[Any]:
     """
     A before-agent callback that gathers basic commit information and files.
-    This does the mechanical work of fetching commit diff, repo structures, and Python files.
+    It receives the commit_id from the parent agent's tool call via user_content.
     """
-    print("CALLBACK: Gathering commit context...")
-    
-    # Check if we have a commit_id in the invocation input
-    if hasattr(callback_context, 'invocation_input') and callback_context.invocation_input:
-        commit_id = callback_context.invocation_input.get('commit_id')
-        if not commit_id:
-            print("CALLBACK ERROR: No commit_id found in invocation input")
+    print("CALLBACK: Gathering commit context for sub-agent run...")
+
+    commit_id = None
+    # 1. Check the correct field: user_content, not invocation_input
+    if callback_context.user_content and callback_context.user_content.parts:
+        try:
+            # 2. The arguments are serialized as a JSON string in the first part's text
+            input_data_json = callback_context.user_content.parts[0].text
+            input_data = json.loads(input_data_json)
+            
+            # 3. Extract the commit_id from the deserialized dictionary
+            commit_id = input_data.get('commit_id')
+        except (json.JSONDecodeError, IndexError, AttributeError) as e:
+            print(f"CALLBACK ERROR: Could not parse commit_id from user_content. Error: {e}")
             return None
-    else:
-        print("CALLBACK ERROR: No invocation input available")
-        return None
     
+    if not commit_id:
+        print("CALLBACK ERROR: No commit_id found in the tool call arguments (user_content).")
+        return None
+        
     print(f"CALLBACK: Processing commit {commit_id}")
+    
+    # --- The rest of your logic remains exactly the same ---
     
     # Step 1: Get commit diff and changed files
     print("CALLBACK: Fetching commit diff...")
@@ -47,7 +57,8 @@ def gather_commit_context(callback_context: CallbackContext) -> Optional[Any]:
     print("CALLBACK: Fetching Python file contents...")
     changed_files_with_content = []
     for file_path in commit_info.get('changed_files', []):
-        content = fetch_file_content('google/adk-python', file_path)
+        # Assuming fetch_file_content can take a commit_id to get the version of the file at that commit
+        content = fetch_file_content('google/adk-python', file_path, commit_id)
         changed_files_with_content.append({
             'path': file_path,
             'content': content
@@ -147,13 +158,13 @@ def save_gathered_context(callback_context: CallbackContext) -> Optional[Any]:
         with open(output_path, "w", encoding="utf-8") as f:
             # Use indent for readability
             json.dump(serializable_context, f, indent=2)
-        print(f"CALLBACK: Successfully saved context artifact.")
+        print(f"CALLBACK: Successfully saved context json file.")
         
         # Store the path to the saved file in the session state
         callback_context.state['context_artifact_path'] = output_path
         
     except Exception as e:
-        print(f"CALLBACK: Error saving context artifact: {e}")
+        print(f"CALLBACK: Error saving context json file: {e}")
         
     # This callback doesn't need to alter the agent's flow, so it returns None.
     return None
