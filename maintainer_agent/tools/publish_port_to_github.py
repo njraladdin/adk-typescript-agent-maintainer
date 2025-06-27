@@ -51,7 +51,8 @@ def publish_port_to_github(
         # Step 1: Get commit information for titles and descriptions
         print(f"[PUBLISH_PORT_TO_GITHUB] Step 1: Fetching commit information")
         commit_result = get_commit_diff(
-            repo="google/adk-python", 
+            username="google",
+            repo="adk-python", 
             commit_sha=commit_sha,
             tool_context=tool_context
         )

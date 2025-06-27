@@ -8,42 +8,6 @@ from google.adk.tools import ToolContext
 from ..constants import AGENT_WORKSPACE_DIR, TYPESCRIPT_REPO_DIR
 
 
-def process_content_encoding(content: str) -> str:
-    """
-    Process content to fix common encoding issues that can occur when AI generates code.
-    
-    This function handles:
-    - Literal \\n characters that should be actual newlines
-    - Literal \\t characters that should be actual tabs
-    - Preserves legitimate escape sequences in strings
-    
-    Args:
-        content (str): The raw content that may contain encoding issues
-        
-    Returns:
-        str: The processed content with proper encoding
-    """
-    # Only process if we detect literal newline characters that are likely mistakes
-    # Look for patterns like {\n where \\n appears outside of string literals
-    
-    # Simple approach: Replace literal \\n with actual newlines, but be conservative
-    # This targets the specific issue seen in the logs where \\n appears in template literals
-    processed = content
-    
-    # Handle literal newline characters that appear in code (not in strings)
-    # Target patterns like: {\n, ;\n, )\n, etc.
-    import re
-    
-    # Replace \\n that appears after common code characters
-    processed = re.sub(r'(\{|;|\)|,|\s)\\n', r'\1\n', processed)
-    
-    # Replace \\n at the beginning of lines (likely indentation issues)
-    processed = re.sub(r'^(\s*)\\n', r'\1\n', processed, flags=re.MULTILINE)
-    
-    # Handle literal tab characters in similar contexts
-    processed = re.sub(r'(\{|;|\)|,|\s)\\t', r'\1\t', processed)
-    
-    return processed
 
 def write_local_file(
     file_path: str,
@@ -93,11 +57,9 @@ def write_local_file(
         # Create parent directories
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Process content to handle common encoding issues
-        processed_content = process_content_encoding(content)
-        
-        # Write the processed file content to the TypeScript repository
-        output_path.write_text(processed_content, encoding='utf-8')
+        # Write the file content directly to the TypeScript repository without processing
+        # The process_content_encoding function was causing invalid backslash characters
+        output_path.write_text(content, encoding='utf-8')
         
         success_result = {
             "status": "success",
@@ -130,8 +92,6 @@ if __name__ == "__main__":
         # Test the encoding processor
         print("Testing encoding processor:")
         print("Before:", repr(test_content_with_issues))
-        processed = process_content_encoding(test_content_with_issues)
-        print("After:", repr(processed))
         
         # Test writing the file
         result = write_local_file(
