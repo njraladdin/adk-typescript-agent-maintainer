@@ -66,7 +66,7 @@ initial_context_gatherer_agent = Agent(
 
     ---
     **AVAILABLE CONTEXT**
-    
+
     **Commit Information:**
     {commit_context}
 
@@ -99,84 +99,6 @@ initial_context_gatherer_agent = Agent(
     )
     ```
 
-    That's it. Keep it straightforward.
-    """,
-)
-
-# --- Agent 2: Coder ---
-coder_agent = Agent(
-    name="coder_agent",
-    model="gemini-2.5-flash",
-    tools=[get_files_content, write_local_file, build_typescript_project, run_typescript_tests],
-    before_agent_callback=load_gathered_context,
-    
-    instruction="""
-    You are an expert Python-to-TypeScript code translator. You work adaptively - fetching additional context as needed, just like a human developer.
-
-    ---
-    **MISSION CONTEXT**
-
-    You are working on a project to port features from a primary Python repository to its TypeScript equivalent.
-
-    - **SOURCE REPOSITORY:** `google/adk-python`
-      - This is the official Python Agent Development Kit where new features and bug fixes originate.
-      - The context gatherer has already collected all relevant Python files that were changed in the commit.
-
-    - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
-      - This is the TypeScript port of the Python library.
-      - Your goal is to accurately translate the specific Python changes shown in the commit diff into their TypeScript equivalents.
-      - The context gatherer has collected comprehensive TypeScript context to help you understand the project's patterns and conventions.
-    ---
-
-    **AVAILABLE CONTEXT**
-
-    **Commit Information:**
-    {commit_context}
-
-    **TypeScript Repository Structure:**
-    {typescript_repo_structure}
-
-    **Initial TypeScript Files:**
-    {typescript_files}
-
-    **YOUR WORKFLOW**
-
-    You have initial TypeScript context and need to translate the Python commit changes to TypeScript:
-
-    **Translate & Fetch Context as Needed:**
-    - Start translating the Python changes to their TypeScript equivalents
-    - **If you need more context** (imports, patterns, examples), use `get_files_content` to fetch additional files
-    - **If you encounter unfamiliar patterns**, fetch related files to understand the TypeScript conventions
-    - **If you need to understand interfaces or types**, fetch type definition files
-    - Work iteratively - translate, fetch context, translate more
-
-    **Write Files:**
-    - Use `write_local_file` to write the updated TypeScript files
-    - Apply only the changes from the commit diff, keeping existing code unchanged
-
-    **Build & Test:**
-    - Use `build_typescript_project` to ensure compilation
-    - Use `run_typescript_tests` on relevant test files
-    - If errors occur, fetch more context or fix issues as needed
-
-    **Key Principles:**
-    - **Fetch context on-demand** - Don't guess, get the files you need when you need them
-    - **Be adaptive** - If something doesn't make sense, fetch more examples
-    - **Work iteratively** - Code a bit, research a bit, code more
-    - **Use batch fetching** - When you know you need multiple files, fetch them together
-
-    **Example Adaptive Workflow:**
-    ```
-    # Start translating BaseAgent.ts, realize I need to understand event handling
-    get_files_content(repo='njraladdin/adk-typescript', file_paths=['src/events/Event.ts', 'src/events/EventHandler.ts'])
-    
-    # Continue coding, encounter a build error about missing interface
-    get_files_content(repo='njraladdin/adk-typescript', file_paths=['src/types/LlmTypes.ts'])
-    
-    # Finish translation and test
-    ```
-
-    Work naturally and adaptively - you have the tools to get any context you need.
     """,
 )
 
@@ -185,92 +107,194 @@ coder_agent = Agent(
 # ==============================================================================
 
 context_gatherer_tool = agent_tool.AgentTool(agent=initial_context_gatherer_agent)
-coder_agent_tool = agent_tool.AgentTool(agent=coder_agent)
 
-# ==============================================================================
-# 4. DEFINE THE MAINTAINER AGENT 
-# ==============================================================================
-
-maintainer_agent = Agent(
+# --- Agent 2: Main Maintainer Agent ---
+main_agent = Agent(
     name="maintainer_agent",
     model="gemini-2.5-flash",
     
     # Add the input schema for proper tool integration
     input_schema=AgentInput,
     
-    description=(
-        "Main agent for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
-        "Handles the complete workflow: gathering context, translating code, building, testing, and publishing to GitHub."
-    ),
-    
-    # Provide all the tools needed for the complete workflow
     tools=[
         context_gatherer_tool,
-        coder_agent_tool,
+        get_files_content, 
+        write_local_file, 
+        build_typescript_project, 
+        run_typescript_tests,
         publish_port_to_github,
     ],
     
     # Add the setup_agent_workspace callback
     before_agent_callback=setup_agent_workspace,
     
+    description=(
+        "Main agent for porting specific commits from google/adk-python to njraladdin/adk-typescript. "
+        "Handles the complete adaptive workflow: initial context gathering, code translation with adaptive context fetching, building, testing, and publishing to GitHub."
+    ),
+    
     instruction="""
-    You are the main agent for porting specific commits from the Python ADK repository to its TypeScript equivalent. 
-    You handle the complete end-to-end workflow from gathering context to publishing on GitHub.
+    You are the main agent for porting commits from the Python ADK repository to its TypeScript equivalent. You handle the complete end-to-end workflow naturally and adaptively.
 
-    **WORKFLOW:**
-    1. **Gather Context** - Use ContextGatherer to collect all necessary files and context for the commit
-    2. **Translate Code** - Use Coder to translate, build, and test the Python code to TypeScript  
-    3. **Publish to GitHub** - Use publish_port_to_github to handle all GitHub operations in one call
+    ---
+    **MISSION CONTEXT**
 
-    **STEPS:**
-    Given a commit hash (e.g., 'abc1234'), you will:
+    You are working on a project to port features from a primary Python repository to its TypeScript equivalent.
 
-    1. **Gather Context**:
-       - Use `ContextGatherer(commit_id='abc1234')` to collect all necessary files and context
-       - This will gather commit info, Python files, TypeScript equivalents, and related files
+    - **SOURCE REPOSITORY:** `google/adk-python`
+      - This is the official Python Agent Development Kit where new features and bug fixes originate.
 
-    2. **Translate Code**:
-       - Use `Coder()` to translate the Python code to TypeScript
-       - The Coder will load the context, translate files, build, and test
-       - If Coder fails, stop here (no GitHub operations needed)
+    - **TARGET REPOSITORY:** `njraladdin/adk-typescript`
+      - This is the TypeScript port of the Python library.
+      - Your goal is to accurately translate Python commit changes into their TypeScript equivalents.
 
-    3. **Publish to GitHub** (only if code translation succeeds):
-       - Use `publish_port_to_github(commit_sha='abc1234')`
-       - This will automatically create issue, branch, commit, push, and PR
+    **YOUR COMPLETE WORKFLOW**
 
-    **EXAMPLE - FULL WORKFLOW:**
-    User: 'Port commit abc1234'
+    Given a commit hash, you handle everything from start to finish:
 
-    Step 1: `ContextGatherer(commit_id='abc1234')`
-    → [SUCCESS] Gathered context for 3 Python files and their TypeScript equivalents
+    **1. Get Initial Context:**
+    - Use `context_gatherer_tool(commit_id='commit_hash')` to fetch the most obviously relevant TypeScript files
+    - This gives you the core files needed for translation
 
-    Step 2: `Coder()`
-    → [SUCCESS] Translated files, build successful, tests passing
+    **2. Translate Code Adaptively:**
+    You now have initial TypeScript context and need to translate the Python commit changes:
 
-    Step 3: `publish_port_to_github(commit_sha='abc1234')`
-    → [SUCCESS] Created issue #45, branch port-abc1234, and PR #12
+    - Start translating the Python changes to their TypeScript equivalents
+    - **If you need more context** (imports, patterns, examples), use `get_files_content` to fetch additional files
+    - **If you encounter unfamiliar patterns**, fetch related files to understand the TypeScript conventions
+    - **If you need to understand interfaces or types**, fetch type definition files
+    - Work iteratively - translate, fetch context if needed, translate more
 
-    **EXAMPLE - CODE TRANSLATION FAILURE:**
-    User: 'Port commit ghi9012'
+    **3. Write Files:**
+    - Use `write_local_file` to write the updated TypeScript files
+    - Apply only the changes from the commit diff, keeping existing code unchanged
 
-    Step 1: `ContextGatherer(commit_id='ghi9012')`
-    → [SUCCESS] Context gathered
+    **4. Build & Test:**
+    - Use `build_typescript_project` to ensure compilation
+    - Use `run_typescript_tests` on relevant test files
+    - If errors occur, fetch more context or fix issues as needed
 
-    Step 2: `Coder()`
-    → [FAILED] TypeScript compilation errors
-    → Stop here (no GitHub operations performed)
+    **5. Publish to GitHub (if successful):**
+    - Use `publish_port_to_github(commit_sha='commit_hash')` to handle all GitHub operations
+    - This automatically creates issue, branch, commit, push, and PR
+    - Only do this if translation, build, and tests are successful
 
-    **PARTIAL OPERATIONS:**
-    You can also handle specific requests:
-    - 'Gather context for commit abc123' → Use `ContextGatherer` only
-    - 'Translate the gathered context' → Use `Coder` only  
-    - 'Publish commit abc123 to GitHub' → Use `publish_port_to_github` only
+    **Key Principles:**
+    - **Work adaptively** - Fetch context when you need it, not before
+    - **Be thorough** - Don't publish broken code
+    - **Handle failures gracefully** - If translation fails, don't proceed to GitHub
+    - **Use batch fetching** - When you know you need multiple files, fetch them together
+
+    **Example Full Workflow:**
+    ```
+    # STEP 1: Get initial context
+    context_gatherer_tool(commit_id='abc1234')
+    # Expected output: {"status": "success", "message": "Gathered context for commit abc1234"}
+    # This fetches: BaseAgent.ts, Agent.ts, BaseAgent.test.ts, AgentTypes.ts
+    
+    # STEP 2: Start translating - if you need more context during translation
+    # For example, you see unfamiliar import patterns in BaseAgent.ts:
+    get_files_content(
+        repo='njraladdin/adk-typescript', 
+        file_paths=['src/events/EventEmitter.ts', 'src/utils/Logger.ts']
+    )
+    # Expected output: {"status": "success", "files": {...}, "successful_files": [...]}
+    
+    # STEP 3: Write translated files with full content
+    write_local_file(
+        file_path="src/agents/BaseAgent.ts",
+        content='''import { EventEmitter } from '../events/EventEmitter';
+import { Logger } from '../utils/Logger';
+
+export class BaseAgent extends EventEmitter {
+    private logger: Logger;
+    private eventCount: number = 0;  // NEW: Added from Python commit
+    
+    constructor() {
+        super();
+        this.logger = new Logger();
+    }
+    
+    processEvent(event: any): boolean {
+        // CHANGED: info -> debug (from Python commit)
+        this.logger.debug(`Processing: ${event}`);
+        this.eventCount += 1;  // NEW: Added from Python commit
+        return true;
+    }
+}'''
+    )
+    # Expected output: {"status": "success", "message": "File written successfully"}
+    
+    write_local_file(
+        file_path="src/models/GoogleLlm.ts", 
+        content='''// Apply specific changes from the Python commit diff here
+export class GoogleLlm extends BaseLlm {
+    // ... existing code with only the diff changes applied
+}'''
+    )
+    # Expected output: {"status": "success", "message": "File written successfully"}
+    
+    # STEP 4: Build to check for compilation errors
+    build_typescript_project()
+    # Expected output: {"status": "success", "message": "Build completed successfully"}
+    # If failed: {"status": "error", "message": "Compilation error: ...", "errors": [...]}
+    
+    # STEP 5: Run relevant tests  
+    run_typescript_tests(test_names=["BaseAgent.test.ts", "GoogleLlm.test.ts"])
+    # Expected output: {"status": "success", "passed": 5, "failed": 0, "message": "All tests passed"}
+    # If failed: {"status": "partial", "passed": 3, "failed": 2, "failures": [...]}
+    
+    # STEP 6: Only if build and tests successful, publish to GitHub
+    publish_port_to_github(commit_sha='abc1234')
+    # Expected output: {"status": "success", "issue_number": 45, "pr_number": 12, "branch": "port-abc1234"}
+    ```
+
+    **Example Error Handling:**
+    ```
+    # If build fails:
+    build_typescript_project()
+    # Output: {"status": "error", "message": "Type 'string' is not assignable to type 'number'"}
+    
+    # Fetch more context to understand the TypeScript patterns:
+    get_files_content(
+        repo='njraladdin/adk-typescript',
+        file_paths=['src/types/CommonTypes.ts', 'src/models/BaseLlm.ts']
+    )
+    
+    # Fix the code and try building again:
+    write_local_file(file_path="src/models/GoogleLlm.ts", content="...fixed code...")
+    build_typescript_project()
+    # Output: {"status": "success", "message": "Build completed successfully"}
+    
+    # Continue with tests and publishing...
+    ```
+
+    **Example Partial Operation:**
+    ```
+    # User: "Just get context for commit xyz789"
+    context_gatherer_tool(commit_id='xyz789')
+    # Stop here, don't proceed to translation
+    
+    # User: "Translate the code" (context already gathered)
+    write_local_file(file_path="...", content="...")
+    build_typescript_project()
+    run_typescript_tests(test_names=["..."])
+    # Stop here, don't publish to GitHub
+    
+    # User: "Publish commit xyz789" (code already translated and tested)
+    publish_port_to_github(commit_sha='xyz789')
+    ```
+
+    Work naturally and adaptively - you have all the tools needed for the complete workflow.
     """,
 )
 
 # ==============================================================================
-# 5. SET DEFAULT ROOT AGENT
+# 4. SET DEFAULT ROOT AGENT
 # ==============================================================================
 
-# For backwards compatibility, export maintainer_agent as root_agent
-root_agent = maintainer_agent
+# The main agent is now the root agent
+root_agent = main_agent
+
+# For backwards compatibility
+maintainer_agent = main_agent
