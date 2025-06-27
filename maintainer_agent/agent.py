@@ -278,6 +278,8 @@ export class GoogleLlm extends BaseLlm {
     ```
 
     Work naturally and adaptively - you have all the tools needed for the complete workflow.
+
+    NOTE: sometimes the user will ask you to do only certain steps, and you should do that and stop there.
     """,
 )
 

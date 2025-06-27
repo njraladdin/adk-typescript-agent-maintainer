@@ -6,7 +6,7 @@ This tool replaces the previous callback-based approach for gathering commit con
 import json
 from typing import Dict, Any, List
 
-from ..github_api_utils import fetch_commit_diff_data, fetch_repo_structure, fetch_file_content
+from ..github_api_utils import fetch_commit_diff_data, fetch_repo_structure, fetch_multiple_files_content
 
 
 def gather_commit_context(commit_id: str) -> Dict[str, Any]:
@@ -30,15 +30,14 @@ def gather_commit_context(commit_id: str) -> Dict[str, Any]:
         - typescript_repo_structure: String representation of TypeScript repo structure
         - message: Success/error message
     """
-    print(f"TOOL: Gathering commit context for {commit_id}")
+    print(f"[gather_commit_context]: commit_id={commit_id}")
     
     try:
         # Step 1: Get commit diff and changed files
-        print("TOOL: Fetching commit diff...")
         commit_info = fetch_commit_diff_data(commit_id)
         
         if not commit_info or 'commit_sha' not in commit_info:
-            return {
+            error_result = {
                 "status": "error",
                 "message": f"Failed to fetch commit information for {commit_id}",
                 "commit_sha": "",
@@ -46,37 +45,33 @@ def gather_commit_context(commit_id: str) -> Dict[str, Any]:
                 "changed_files": [],
                 "typescript_repo_structure": ""
             }
+            print(f"[gather_commit_context] ERROR: {error_result['message']}")
+            return error_result
         
-        # Step 2: Get content of each changed Python file
-        print("TOOL: Fetching Python file contents...")
+        # Step 2: Get content of all changed Python files concurrently
         changed_files_with_content = []
+        changed_file_paths = commit_info.get('changed_files', [])
         
-        for file_path in commit_info.get('changed_files', []):
-            try:
-                # Fetch the file content at the specific commit
-                content = fetch_file_content('google/adk-python', file_path, commit_id)
-                if content:
+        if changed_file_paths:
+            # Use the concurrent fetch utility
+            file_results = fetch_multiple_files_content('google/adk-python', changed_file_paths, commit_id)
+            
+            # Process results and build the changed_files_with_content list
+            for file_path in changed_file_paths:
+                result = file_results.get(file_path, {})
+                if result.get('status') == 'success' and result.get('content'):
                     changed_files_with_content.append({
                         'path': file_path,
-                        'content': content
+                        'content': result['content']
                     })
-                else:
-                    print(f"TOOL: Warning - No content retrieved for {file_path}")
-            except Exception as e:
-                print(f"TOOL: Error fetching content for {file_path}: {e}")
         
         # Step 3: Get TypeScript repository structure  
-        print("TOOL: Fetching TypeScript repository structure...")
         try:
             typescript_structure = fetch_repo_structure('njraladdin/adk-typescript')
         except Exception as e:
-            print(f"TOOL: Warning - Failed to fetch TypeScript repository structure: {e}")
             typescript_structure = "Failed to fetch repository structure"
         
-        print(f"TOOL: Successfully gathered context for commit {commit_id}")
-        print(f"TOOL: Found {len(changed_files_with_content)} changed Python files with content")
-        
-        return {
+        success_result = {
             "status": "success",
             "commit_sha": commit_info['commit_sha'],  
             "diff": commit_info['diff'],
@@ -85,14 +80,18 @@ def gather_commit_context(commit_id: str) -> Dict[str, Any]:
             "message": f"Successfully gathered context for commit {commit_id}"
         }
         
+        print(f"[gather_commit_context]: status=success, commit_sha={commit_info['commit_sha']}, changed_files_count={len(changed_files_with_content)}")
+        return success_result
+        
     except Exception as e:
         error_msg = f"Failed to gather commit context for {commit_id}: {str(e)}"
-        print(f"TOOL ERROR: {error_msg}")
-        return {
+        error_result = {
             "status": "error",
             "message": error_msg,
             "commit_sha": "",
             "diff": "",
             "changed_files": [],
             "typescript_repo_structure": ""
-        } 
+        }
+        print(f"[gather_commit_context] ERROR: {error_msg}")
+        return error_result 
