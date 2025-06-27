@@ -38,9 +38,16 @@ hosted : both agent and ui hosted on google cloud
 automatic monitoring: automatically monitor newest commits, send them to agent
 
 TODO: 
-- make file reading faster by reading files from the cloned repo not from the api, done 
 
-- troubleshoot: submit a few commits until it can port it perfectly:
+- manually port commits before v0.5.0, then release v0.5.0
+- process one commit correctly and publish it, starting with this commit after v0.5.0 : 2cbbf881353835ba1c321de865b0f53d1c4540e5
+https://github.com/google/adk-python/commits/main/?before=f0183a9b98b0bcf8aab4f948f467cef204ddc9d6+525
+
+
+- battle hardening: process commits until v1.4.1 and troubleshoot issues along the way. try claude models 
+
+
+- monitoring : set up automatic processing of commits, one after one in a queue when the current one gets approved 
 
 
 

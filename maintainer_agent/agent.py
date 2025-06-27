@@ -36,7 +36,7 @@ class AgentInput(BaseModel):
 # ==============================================================================
 
 # --- Main Maintainer Agent ---
-main_agent = Agent(
+root_agent = Agent(
     name="maintainer_agent",
     model="gemini-2.5-flash",
     
@@ -264,13 +264,3 @@ export class GoogleLlm extends BaseLlm {
     NOTE: sometimes the user will ask you to do only certain steps, and you should do that and stop there.
     """,
 )
-
-# ==============================================================================
-# 3. SET DEFAULT ROOT AGENT
-# ==============================================================================
-
-# The main agent is now the root agent
-root_agent = main_agent
-
-# For backwards compatibility
-maintainer_agent = main_agent
