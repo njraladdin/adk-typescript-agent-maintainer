@@ -241,6 +241,8 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
     2. Pulling latest changes from remote
     3. Checking what setup steps have been completed and performing necessary steps
     
+    Note: Commit context gathering is now handled by the gather_commit_context tool.
+    
     If any step in the setup process fails, it will print an error message and return.
     """
     print("CALLBACK: Setting up TypeScript repository workspace...")
@@ -319,7 +321,7 @@ def setup_agent_workspace(callback_context: CallbackContext) -> Optional[Any]:
             return None
         print(f"CALLBACK: ✓ {env_message}")
     else:
-        print("CALLBACK: ✓ Environment already set up")
+        print(f"CALLBACK: ✓ Environment already set up")
     
     print("CALLBACK: TypeScript repository setup completed successfully with fresh state")
     

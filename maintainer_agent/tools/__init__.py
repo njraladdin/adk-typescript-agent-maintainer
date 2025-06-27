@@ -10,5 +10,6 @@ from .commit_and_push_changes import commit_and_push_changes
 from .create_pull_request import create_pull_request
 from .publish_port_to_github import publish_port_to_github
 from .get_files_content import get_files_content
+from .gather_commit_context import gather_commit_context
 
-__all__ = ['commit_and_push_changes', 'create_pull_request', 'publish_port_to_github', 'get_files_content'] 
+__all__ = ['commit_and_push_changes', 'create_pull_request', 'publish_port_to_github', 'get_files_content', 'gather_commit_context'] 
