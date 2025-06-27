@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from google.adk.agents import Agent
 
 # --- Coder Agent Tool Imports ---
-from .tools.get_files_content import get_files_from_github
+from .tools.get_files import get_files
 from .tools.write_local_file import write_local_file
 from .tools.build_typescript_project import build_typescript_project
 from .tools.run_typescript_tests import run_typescript_tests
@@ -44,7 +44,7 @@ main_agent = Agent(
     input_schema=AgentInput,
     
     tools=[
-        get_files_from_github, 
+        get_files,
         write_local_file, 
         build_typescript_project, 
         run_typescript_tests,
@@ -74,6 +74,11 @@ main_agent = Agent(
       - This is the TypeScript port of the Python library.
       - Your goal is to accurately translate Python commit changes into their TypeScript equivalents.
 
+    **IMPORTANT: FILE ACCESS STRATEGY**
+
+    For TypeScript files, use the `get_files` tool which reads from the local cloned repository - this is much faster than API calls.
+    Python files are automatically fetched by `gather_commit_context` so you don't need to fetch them separately.
+
     **YOUR COMPLETE WORKFLOW**
 
     Given a commit hash, you handle everything from start to finish:
@@ -95,7 +100,7 @@ main_agent = Agent(
 
     - **Analyze the commit** - Look at what Python files changed and understand the basic functionality
     
-    - **Make ONE batch fetch** - Use `get_files_from_github` to fetch the most obviously relevant TypeScript files:
+    - **Make ONE batch fetch** - Use `get_files` to fetch the most obviously relevant TypeScript files from the local repository:
        - Direct TypeScript equivalents of changed Python files
        - Related base classes or interfaces 
        - A few test files for pattern understanding
@@ -106,8 +111,7 @@ main_agent = Agent(
     **Example:** 
     For Python file `google/adk/agents/base_agent.py`, fetch:
     ```
-    get_files_from_github(
-        repo='njraladdin/adk-typescript',
+    get_files(
         file_paths=[
             'src/agents/BaseAgent.ts',           # Direct equivalent  
             'src/agents/Agent.ts',               # Related agent
@@ -121,7 +125,7 @@ main_agent = Agent(
     You now have commit context and initial TypeScript context. Translate the Python commit changes:
 
     - Start translating the Python changes to their TypeScript equivalents
-    - **If you need more context** (imports, patterns, examples), use `get_files_from_github` to fetch additional files
+    - **If you need more context** (imports, patterns, examples), use `get_files` to fetch additional TypeScript files
     - **If you encounter unfamiliar patterns**, fetch related files to understand the TypeScript conventions
     - **If you need to understand interfaces or types**, fetch type definition files
     - Work iteratively - translate, fetch context if needed, translate more
@@ -153,8 +157,7 @@ main_agent = Agent(
     # Expected output: {"status": "success", "commit_sha": "abc1234", "diff": "...", "changed_files": [...], "typescript_repo_structure": "...", "message": "Successfully gathered context..."}
     
     # STEP 2: Gather initial TypeScript context
-    get_files_from_github(
-        repo='njraladdin/adk-typescript',
+    get_files(
         file_paths=[
             'src/agents/BaseAgent.ts',           # Direct equivalent  
             'src/agents/Agent.ts',               # Related agent
@@ -166,8 +169,7 @@ main_agent = Agent(
     
     # STEP 3: Start translating - if you need more context during translation
     # For example, you see unfamiliar import patterns in BaseAgent.ts:
-    get_files_from_github(
-        repo='njraladdin/adk-typescript', 
+    get_files(
         file_paths=['src/events/EventEmitter.ts', 'src/utils/Logger.ts']
     )
     # Expected output: {"status": "success", "files": {...}, "successful_files": [...]}
@@ -228,8 +230,7 @@ export class GoogleLlm extends BaseLlm {
     # Output: {"status": "error", "message": "Type 'string' is not assignable to type 'number'"}
     
     # Fetch more context to understand the TypeScript patterns:
-    get_files_from_github(
-        repo='njraladdin/adk-typescript',
+    get_files(
         file_paths=['src/types/CommonTypes.ts', 'src/models/BaseLlm.ts']
     )
     
@@ -248,7 +249,7 @@ export class GoogleLlm extends BaseLlm {
     # Stop here, don't proceed to translation
     
     # User: "Translate the code" (context already gathered)
-    get_files_from_github(repo='njraladdin/adk-typescript', file_paths=[...])
+    get_files(file_paths=[...])
     write_local_file(file_path="...", content="...")
     build_typescript_project()
     run_typescript_tests(test_names=["..."])

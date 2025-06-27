@@ -403,6 +403,68 @@ def check_workspace_setup_status(workspace_path: Optional[Path] = None) -> Dict[
     }
 
 
+def read_local_files(file_paths: List[str], workspace_path: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Read multiple files from the local TypeScript repository.
+    
+    Args:
+        file_paths: List of file paths relative to the TypeScript repository root
+        workspace_path: Optional custom workspace path. If None, uses default.
+        
+    Returns:
+        Dict[str, Dict[str, Any]]: Dictionary mapping file paths to their content and metadata.
+                                  Only includes successfully read files.
+    """
+    if workspace_path is None:
+        workspace_path = Path(AGENT_WORKSPACE_DIR)
+    
+    typescript_repo_path = get_typescript_repo_path(workspace_path)
+    
+    if not typescript_repo_path.exists():
+        print(f"TypeScript repository not found at {typescript_repo_path}")
+        return {}
+    
+    files = {}
+    
+    for file_path in file_paths:
+        try:
+            full_path = typescript_repo_path / file_path
+            
+            if not full_path.exists():
+                print(f"File not found: {file_path}")
+                continue
+            
+            if not full_path.is_file():
+                print(f"Path is not a file: {file_path}")
+                continue
+            
+            # Read file content
+            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            
+            # Get file metadata
+            stat = full_path.stat()
+            metadata = {
+                'name': full_path.name,
+                'size': stat.st_size,
+                'path': file_path,
+                'full_path': str(full_path)
+            }
+            
+            files[file_path] = {
+                'content': content,
+                'metadata': metadata
+            }
+            
+            print(f"Successfully read local file: {file_path} ({metadata['size']} bytes)")
+            
+        except Exception as e:
+            print(f"Error reading local file {file_path}: {e}")
+            continue
+    
+    return files
+
+
 def _parse_test_output(stdout: str) -> Dict[str, Any]:
     """
     Parse test output to extract useful information.
