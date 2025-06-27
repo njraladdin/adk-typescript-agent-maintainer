@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any, List
 from google.adk.tools import ToolContext
 from ..github_api_utils import fetch_multiple_files_content, get_github_token
 
-def get_files_content(
+def get_files_from_github(
     repo: str,
     file_paths: List[str],
     branch: Optional[str] = None,
@@ -53,7 +53,7 @@ def get_files_content(
         return files
     
     except Exception as error:
-        print(f"Error in get_files_content: {error}")
+        print(f"Error in get_files_from_github: {error}")
         return {}
 
 if __name__ == "__main__":
@@ -64,7 +64,7 @@ if __name__ == "__main__":
         test_branch = "main"
         
         print(f"Testing concurrent fetch of {len(test_files)} files from {test_repo}:")
-        files = get_files_content(
+        files = get_files_from_github(
             test_repo,
             test_files,
             test_branch

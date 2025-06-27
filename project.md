@@ -31,26 +31,17 @@ progress:
 - ability to fetch another file in code translation agent 
 - always start with fresh cloned repo 
 - ui agent: submit a single commit on a UI, display steps taken by agent on a web ui.
-
-
-focused and simpler : make everything more focused. a lot of stuff here doesn't need to be seperate agent 
-
-TODO: 
-- make github stuff happen after porting in one block instead of some github stuff happeneing before we port nad some after we port the commit, done 
-- make it so the github stuff doesn't require agentic process, just simpel workflow (a tool), done 
-- remove maintainer agent, done 
-
-- context gatherer : make it be able to fetch more file at once OR give it whole codebase and let it choose which files to keep (discuss with AI, then test)
-
-
-- make file reading faster by reading files  from the cloned repo not from the api 
-
-
-troubleshoot: submit a few commits until it can port it perfectly:
+- focusedn, simpler : make everything more focused. a lot of stuff here do not need to be seperate agents
 
 hosted : both agent and ui hosted on google cloud 
 
 automatic monitoring: automatically monitor newest commits, send them to agent
 
-tip: to build agent: do the process mnually, do it as a workflow then find which parts require agents and which parts 
+TODO: 
+- make file reading faster by reading files from the cloned repo not from the api 
+
+- troubleshoot: submit a few commits until it can port it perfectly:
+
+
+
 

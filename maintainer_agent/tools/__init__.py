@@ -9,7 +9,7 @@ and tool name and output at the end of execution.
 from .commit_and_push_changes import commit_and_push_changes
 from .create_pull_request import create_pull_request
 from .publish_port_to_github import publish_port_to_github
-from .get_files_content import get_files_content
+from .get_files_content import get_files_from_github
 from .gather_commit_context import gather_commit_context
 
-__all__ = ['commit_and_push_changes', 'create_pull_request', 'publish_port_to_github', 'get_files_content', 'gather_commit_context'] 
+__all__ = ['commit_and_push_changes', 'create_pull_request', 'publish_port_to_github', 'get_files_from_github', 'gather_commit_context'] 
