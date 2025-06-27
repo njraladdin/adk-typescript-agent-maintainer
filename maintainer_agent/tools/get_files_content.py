@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any, List
 from google.adk.tools import ToolContext
 from ..workspace_utils import read_local_files
 
-def get_files(
+def get_files_content(
     file_paths: List[str],
     tool_context: ToolContext = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -17,7 +17,7 @@ def get_files(
         Dict[str, Dict[str, Any]]: Dictionary mapping file paths to their content and metadata.
                                   Only includes successfully read files.
     """
-    print(f"[get_files]: file_paths={file_paths}")
+    print(f"[get_files_content]: file_paths={file_paths}")
     
     try:
         files = read_local_files(file_paths)
@@ -31,7 +31,7 @@ def get_files(
         
         if files:
             successful_files = list(files.keys())
-            print(f"[get_files]: status=success, files_count={len(files)}, successful_files={successful_files}")
+            print(f"[get_files_content]: status=success, files_count={len(files)}, successful_files={successful_files}")
             return {
                 "status": "success",
                 "files": files,
@@ -39,7 +39,7 @@ def get_files(
                 "message": f"Successfully read {len(files)} files from local TypeScript repository"
             }
         else:
-            print(f"[get_files]: status=error, message=No files were successfully read")
+            print(f"[get_files_content]: status=error, message=No files were successfully read")
             return {
                 "status": "error", 
                 "files": {},
@@ -48,8 +48,8 @@ def get_files(
             }
     
     except Exception as error:
-        error_msg = f"Error in get_files: {error}"
-        print(f"[get_files]: status=error, message={error_msg}")
+        error_msg = f"Error in get_files_content: {error}"
+        print(f"[get_files_content]: status=error, message={error_msg}")
         return {
             "status": "error",
             "files": {},
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         test_files = ["README.md", "package.json", "src/agents/BaseAgent.ts"]
         
         print(f"Testing local file reading of {len(test_files)} files:")
-        result = get_files(test_files)
+        result = get_files_content(test_files)
         
         if result["status"] == "success":
             files = result["files"]

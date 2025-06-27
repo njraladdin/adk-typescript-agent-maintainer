@@ -159,7 +159,7 @@ def parse_diff(raw_diff: str, max_excerpt_lines: int) -> CommitDiffResponse:
         'total_files_changed': len(files)
     }
 
-def get_commit_diff(
+def get_commit_diff_and_files(
     username: str,
     repo: str,
     commit_sha: str,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
         test_commit_sha = "6dec235c13f42f1a6f69048b30fb78f48831cdbd"  # Example commit SHA
         
         print(f"Fetching diff for commit {test_commit_sha} from {test_username}/{test_repo} repo:")
-        diff_data = get_commit_diff(test_username, test_repo, test_commit_sha, 10)
+        diff_data = get_commit_diff_and_files(test_username, test_repo, test_commit_sha, 10)
         import json
         print(json.dumps(diff_data, indent=2))
     except Exception as error:
