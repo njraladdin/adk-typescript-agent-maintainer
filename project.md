@@ -39,9 +39,8 @@ automatic monitoring: automatically monitor newest commits, send them to agent
 
 TODO: 
 
-- ui : check recent fullstack example, don't use traces, get session events. https://github.com/google/adk-samples/blob/main/python/agents/gemini-fullstack/frontend/src/App.tsx
+- ui : check recent fullstack example, don't use traces, get session events, done https://github.com/google/adk-samples/blob/main/python/agents/gemini-fullstack/frontend/src/App.tsx
 
-- process one commit correctly and publish it, starting with this commit : 5b3204c356c4a13a661038cc2a77ebf336d0a112 / https://github.com/google/adk-python/commits/main/?before=f0183a9b98b0bcf8aab4f948f467cef204ddc9d6+455
 
 - battle hardening: process commits until v1.0.0 and troubleshoot issues along the way.
         try claude models 
@@ -50,5 +49,6 @@ TODO:
 
 - simple automatic monitoring 
 
+last commit: 5b3204c356c4a13a661038cc2a77ebf336d0a112 / https://github.com/google/adk-python/commits/main/?before=f0183a9b98b0bcf8aab4f948f467cef204ddc9d6+455
 
 
