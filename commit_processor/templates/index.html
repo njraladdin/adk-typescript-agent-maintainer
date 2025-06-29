@@ -334,11 +334,13 @@
     const connectionStatus = document.getElementById('connection-status');
     const logContainer = document.getElementById('log-container');
 
-    let pollingInterval = null;
-    let displayedSpanIds = new Set();
+    let eventSource = null;
+    let displayedEvents = new Set();
     let agentRunCompleted = false;
-    let allSpans = []; // Simple array to store all spans
-    let expandedSpans = new Set(); // Track which spans are expanded
+    let allEvents = []; // Simple array to store all events
+    let expandedEvents = new Set(); // Track which events are expanded
+    let currentAgent = '';
+    let accumulatedText = '';
 
     // Show flash message
     function showFlashMessage(message, type = 'info') {
@@ -367,22 +369,11 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = 'Processing...';
             
-            const response = await fetch('/api/start_processing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ commit_hash: commitHash })
-            });
-            
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to start processing');
-            }
-            
-            // Start polling (agent log section is already visible)
+            // Scroll to agent log section
             document.querySelector('#agent-log-section').scrollIntoView({ behavior: 'smooth' });
             
-            startTracePolling(data.session_id);
+            // Start SSE connection
+            startEventStream(commitHash);
             
         } catch (error) {
             showFlashMessage('Failed to start processing: ' + error.message, 'error');
@@ -391,126 +382,253 @@
         }
     }
 
-    // Start polling the trace endpoint directly
-    function startTracePolling(sessionId) {
-        updateConnectionStatus('Running', 'primary');
-        addStatusMessage(`<i class="fas fa-cog fa-spin me-2"></i>Agent started, polling traces for session: ${sessionId}`);
+    // Start SSE event stream
+    async function startEventStream(commitHash) {
+        updateConnectionStatus('Connecting', 'warning');
+        addStatusMessage(`<i class="fas fa-plug me-2"></i>Connecting to agent...`);
         
-        pollingInterval = setInterval(() => {
-            pollForTraces(sessionId);
-        }, 2000);
-        
-        // Initial poll
-        pollForTraces(sessionId);
-    }
-
-    // Poll trace data via Flask proxy route (avoids CORS issues)
-    async function pollForTraces(sessionId) {
-        if (agentRunCompleted) {
-            clearInterval(pollingInterval);
-            return;
-        }
-
         try {
-            const response = await fetch(`/api/trace/${sessionId}`);
-            
+            const response = await fetch('/api/start_processing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ commit_hash: commitHash })
+            });
+
             if (!response.ok) {
-                if (response.status === 404) {
-                    addStatusMessage(`<i class="fas fa-question-circle me-2"></i>Session ${sessionId} not found in traces yet...`);
-                    return;
-                }
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
-            const spans = await response.json();
-            console.log('Received spans:', spans); // Debug logging
-            
-            if (spans && Array.isArray(spans) && spans.length > 0) {
-                // Clear the status message once we start receiving spans
-                statusMessage.style.display = 'none';
-                
-                // Add new spans to our simple list
-                spans.forEach(span => {
-                    if (span.span_id && !displayedSpanIds.has(span.span_id)) {
-                        allSpans.push(span);
-                        displayedSpanIds.add(span.span_id);
-                    }
-                });
 
-                // Rebuild the simple display
-                rebuildSimpleDisplay();
-                
-                // Check if main agent run is completed
-                const rootSpans = spans.filter(span => 
-                    span.name && span.name.includes('agent_run') && 
-                    !span.parent_span_id && span.end_time
-                );
-                
-                if (rootSpans.length > 0 && !agentRunCompleted) {
-                    agentRunCompleted = true;
-                    updateConnectionStatus('Completed', 'success');
-                    addStatusMessage('<i class="fas fa-check me-2"></i>Main agent execution completed!');
-                    clearInterval(pollingInterval);
-                    showFinalSummary('Agent execution completed successfully!');
+            updateConnectionStatus('Connected', 'success');
+            addStatusMessage('<i class="fas fa-link me-2"></i>Connected to agent stream');
+
+            // Handle SSE streaming
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let lineBuffer = "";
+            let eventDataBuffer = "";
+
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read();
+
+                    if (value) {
+                        lineBuffer += decoder.decode(value, { stream: true });
+                    }
+
+                    let eolIndex;
+                    // Process all complete lines in the buffer, or the remaining buffer if 'done'
+                    while ((eolIndex = lineBuffer.indexOf('\n')) >= 0 || (done && lineBuffer.length > 0)) {
+                        let line;
+                        if (eolIndex >= 0) {
+                            line = lineBuffer.substring(0, eolIndex);
+                            lineBuffer = lineBuffer.substring(eolIndex + 1);
+                        } else { // Only if done and lineBuffer has content without a trailing newline
+                            line = lineBuffer;
+                            lineBuffer = "";
+                        }
+
+                        if (line.trim() === "") { // Empty line: dispatch event
+                            if (eventDataBuffer.length > 0) {
+                                // Remove trailing newline before parsing
+                                const jsonDataToParse = eventDataBuffer.endsWith('\n') ? eventDataBuffer.slice(0, -1) : eventDataBuffer;
+                                console.log('[SSE DISPATCH EVENT]:', jsonDataToParse.substring(0, 200) + "...");
+                                
+                                try {
+                                    const data = JSON.parse(jsonDataToParse);
+                                    processEventData(data);
+                                } catch (error) {
+                                    console.error('Error parsing event data:', error);
+                                }
+                                
+                                eventDataBuffer = ""; // Reset for next event
+                            }
+                        } else if (line.startsWith('data:')) {
+                            eventDataBuffer += line.substring(5).trimStart() + '\n';
+                        } else if (line.startsWith('event:')) {
+                            const eventType = line.substring(6).trim();
+                            if (eventType === 'session_created') {
+                                updateConnectionStatus('Running', 'primary');
+                                statusMessage.style.display = 'none';
+                            } else if (eventType === 'complete') {
+                                agentRunCompleted = true;
+                                updateConnectionStatus('Completed', 'success');
+                                addStatusMessage('<i class="fas fa-check me-2"></i>Agent execution completed!');
+                                showFinalSummary('Agent execution completed successfully!');
+                                return;
+                            } else if (eventType === 'error') {
+                                updateConnectionStatus('Error', 'danger');
+                                return;
+                            }
+                        } else if (line.startsWith(':')) {
+                            // Comment line, ignore
+                        }
+                    }
+
+                    if (done) {
+                        // If the loop exited due to 'done', and there's still data in eventDataBuffer
+                        if (eventDataBuffer.length > 0) {
+                            const jsonDataToParse = eventDataBuffer.endsWith('\n') ? eventDataBuffer.slice(0, -1) : eventDataBuffer;
+                            console.log('[SSE DISPATCH FINAL EVENT]:', jsonDataToParse.substring(0, 200) + "...");
+                            
+                            try {
+                                const data = JSON.parse(jsonDataToParse);
+                                processEventData(data);
+                            } catch (error) {
+                                console.error('Error parsing final event data:', error);
+                            }
+                            
+                            eventDataBuffer = "";
+                        }
+                        break;
+                    }
                 }
-            } else if (spans && Array.isArray(spans) && spans.length === 0 && allSpans.length === 0) {
-                // Empty array means session exists but no spans yet, and we haven't received any spans before
-                addStatusMessage(`<i class="fas fa-hourglass-start me-2"></i>Waiting for agent operations to begin...`);
-                statusMessage.style.display = 'block';
             }
-            
+
         } catch (error) {
-            console.error('Trace polling error:', error);
+            console.error('SSE connection error:', error);
             updateConnectionStatus('Connection Error', 'danger');
-            addStatusMessage(`<i class="fas fa-exclamation-triangle me-2"></i>Error polling traces: ${error.message}`);
-            
-            // Don't clear interval on temporary errors, but limit retries
-            if (error.message.includes('Failed to fetch')) {
-                clearInterval(pollingInterval);
-            }
+            addStatusMessage('<i class="fas fa-exclamation-triangle me-2"></i>Connection error occurred');
+            showError(error.message);
         }
     }
 
-    // Rebuild the simple display
-    function rebuildSimpleDisplay() {
-        // Sort all spans by start time
-        const sortedSpans = allSpans.sort((a, b) => a.start_time - b.start_time);
+    // Process event data from SSE
+    function processEventData(data) {
+        const { textParts, agent, finalReportWithCitations, functionCall, functionResponse } = extractDataFromEvent(data);
+
+        if (agent && agent !== currentAgent) {
+            currentAgent = agent;
+        }
+
+        if (functionCall) {
+            const eventId = Date.now().toString() + '_func_call';
+            const event = {
+                id: eventId,
+                type: 'function_call',
+                timestamp: Date.now(),
+                agent: agent,
+                name: functionCall.name,
+                args: functionCall.args,
+                data: functionCall
+            };
+            allEvents.push(event);
+            displayedEvents.add(eventId);
+        }
+
+        if (functionResponse) {
+            const eventId = Date.now().toString() + '_func_resp';
+            const event = {
+                id: eventId,
+                type: 'function_response',
+                timestamp: Date.now(),
+                agent: agent,
+                name: functionResponse.name,
+                response: functionResponse.response,
+                data: functionResponse
+            };
+            allEvents.push(event);
+            displayedEvents.add(eventId);
+        }
+
+        if (textParts.length > 0) {
+            const eventId = Date.now().toString() + '_text';
+            const event = {
+                id: eventId,
+                type: 'text',
+                timestamp: Date.now(),
+                agent: agent,
+                content: textParts.join(' '),
+                data: { content: textParts.join(' ') }
+            };
+            allEvents.push(event);
+            displayedEvents.add(eventId);
+        }
+
+        // Rebuild display
+        rebuildEventDisplay();
+    }
+
+    // Extract data from SSE event (similar to the example)
+    function extractDataFromEvent(data) {
+        try {
+            let textParts = [];
+            let agent = '';
+            let finalReportWithCitations = undefined;
+            let functionCall = null;
+            let functionResponse = null;
+
+            // Check if content.parts exists and has text
+            if (data.content && data.content.parts) {
+                textParts = data.content.parts
+                    .filter(part => part.text)
+                    .map(part => part.text);
+                
+                // Check for function calls
+                const functionCallPart = data.content.parts.find(part => part.functionCall);
+                if (functionCallPart) {
+                    functionCall = functionCallPart.functionCall;
+                }
+                
+                // Check for function responses
+                const functionResponsePart = data.content.parts.find(part => part.functionResponse);
+                if (functionResponsePart) {
+                    functionResponse = functionResponsePart.functionResponse;
+                }
+            }
+
+            // Extract agent information
+            if (data.author) {
+                agent = data.author;
+            }
+
+            if (data.actions && data.actions.stateDelta && data.actions.stateDelta.final_report_with_citations) {
+                finalReportWithCitations = data.actions.stateDelta.final_report_with_citations;
+            }
+
+            return { textParts, agent, finalReportWithCitations, functionCall, functionResponse };
+        } catch (error) {
+            console.error('Error extracting event data:', error);
+            return { textParts: [], agent: '', finalReportWithCitations: undefined, functionCall: null, functionResponse: null };
+        }
+    }
+
+    // Rebuild the event display
+    function rebuildEventDisplay() {
+        // Sort all events by timestamp
+        const sortedEvents = allEvents.sort((a, b) => a.timestamp - b.timestamp);
         
         // Clear and rebuild
         logEntriesContainer.innerHTML = '';
         
-        sortedSpans.forEach(span => {
-            displaySimpleSpan(span);
+        sortedEvents.forEach(event => {
+            displayEvent(event);
         });
     }
 
-    // Display span in simple format
-    function displaySimpleSpan(span) {
-        const spanDiv = document.createElement('div');
-        const isExpanded = expandedSpans.has(span.span_id);
-        spanDiv.className = isExpanded ? 'log-entry expanded' : 'log-entry collapsed';
-        spanDiv.id = `span-${span.span_id}`;
+    // Display event in the UI
+    function displayEvent(event) {
+        const eventDiv = document.createElement('div');
+        const isExpanded = expandedEvents.has(event.id);
+        eventDiv.className = isExpanded ? 'log-entry expanded' : 'log-entry collapsed';
+        eventDiv.id = `event-${event.id}`;
         
-        // Get span info
-        const attrs = span.attributes || {};
-        const spanInfo = getSpanInfo(span, attrs);
-        const timestamp = new Date(span.start_time / 1e6).toLocaleTimeString();
-        
-        // Get truncated args and response for summary
-        const summaryInfo = getSummaryInfo(attrs);
+        const timestamp = new Date(event.timestamp).toLocaleTimeString();
+        const eventInfo = getEventInfo(event);
         
         // Build compact summary
         let content = `<div class="log-header">
             <i class="fas fa-chevron-right toggle-arrow"></i>
             <div class="log-timestamp">${timestamp}</div>
-            <div class="log-name">${escapeHtml(spanInfo.name)}</div>`;
+            <div class="log-name">${escapeHtml(eventInfo.name)}</div>`;
         
-        if (summaryInfo.args) {
-            content += `<div class="log-args">${escapeHtml(summaryInfo.args)}</div>`;
+        if (eventInfo.summary) {
+            content += `<div class="log-args">${escapeHtml(eventInfo.summary)}</div>`;
         }
         
-        if (summaryInfo.result) {
-            content += `<span class="log-arrow">→</span><div class="log-result">${escapeHtml(summaryInfo.result)}</div>`;
+        if (eventInfo.result) {
+            content += `<span class="log-arrow">→</span><div class="log-result">${escapeHtml(eventInfo.result)}</div>`;
         }
         
         content += `</div>`;
@@ -518,157 +636,69 @@
         // Add full details (hidden by default)
         content += `<div class="full-details">`;
         
-        if (spanInfo.details) {
+        if (eventInfo.details) {
             content += `<div class="detail-section">
-                <div class="detail-label">${getTypeLabel(spanInfo.type)}</div>
-                <div class="detail-content">${escapeHtml(spanInfo.details)}</div>
-            </div>`;
-        }
-        
-        // Show full args
-        if (attrs['gcp.vertex.agent.tool_call_args']) {
-            content += `<div class="detail-section">
-                <div class="detail-label">Arguments</div>
-                <div class="detail-content">${escapeHtml(attrs['gcp.vertex.agent.tool_call_args'])}</div>
-            </div>`;
-        }
-        
-        // Show full response
-        const toolResponse = attrs['gcp.vertex.agent.tool_response'];
-        const llmResponse = attrs['gcp.vertex.agent.llm_response'];
-        
-        if (toolResponse && toolResponse !== '{}') {
-            content += `<div class="detail-section">
-                <div class="detail-label">Result</div>
-                <div class="detail-content">${escapeHtml(toolResponse)}</div>
-            </div>`;
-        } else if (llmResponse && llmResponse !== '{}') {
-            content += `<div class="detail-section">
-                <div class="detail-label">Response</div>
-                <div class="detail-content">${escapeHtml(llmResponse)}</div>
+                <div class="detail-label">${getEventTypeLabel(event.type)}</div>
+                <div class="detail-content">${escapeHtml(eventInfo.details)}</div>
             </div>`;
         }
         
         content += `</div>`;
         
-        spanDiv.innerHTML = content;
+        eventDiv.innerHTML = content;
         
         // Add click handler for expand/collapse
-        spanDiv.addEventListener('click', (e) => {
+        eventDiv.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (expandedSpans.has(span.span_id)) {
-                expandedSpans.delete(span.span_id);
-                spanDiv.classList.remove('expanded');
-                spanDiv.classList.add('collapsed');
+            if (expandedEvents.has(event.id)) {
+                expandedEvents.delete(event.id);
+                eventDiv.classList.remove('expanded');
+                eventDiv.classList.add('collapsed');
             } else {
-                expandedSpans.add(span.span_id);
-                spanDiv.classList.remove('collapsed');
-                spanDiv.classList.add('expanded');
+                expandedEvents.add(event.id);
+                eventDiv.classList.remove('collapsed');
+                eventDiv.classList.add('expanded');
             }
         });
         
-        logEntriesContainer.appendChild(spanDiv);
+        logEntriesContainer.appendChild(eventDiv);
     }
 
-    // Get simplified span info
-    function getSpanInfo(span, attrs) {
-        let spanName = span.name || 'Unknown';
-        
-        // Clean up span names - remove redundant 'execute_tool' prefix
-        if (spanName.startsWith('execute_tool') && attrs['gen_ai.tool.name']) {
-            spanName = attrs['gen_ai.tool.name'];
-        }
-        
-        // Determine if it's a tool call, LLM call, or other
-        let type = 'operation';
-        let details = '';
-        
-        if (attrs['gen_ai.tool.name']) {
-            type = 'tool';
-            details = attrs['gen_ai.tool.name'];
-        } else if (attrs['gen_ai.request.model']) {
-            type = 'llm';
-            details = attrs['gen_ai.request.model'];
-        } else if (spanName.includes('agent') && !spanName.includes('agent_run')) {
-            type = 'agent';
-            details = spanName;
-        }
-        
-        return { name: spanName, type, details };
-    }
-
-
-
-    // Get summary info for compact display
-    function getSummaryInfo(attrs) {
-        let args = '';
+    // Get event info for display
+    function getEventInfo(event) {
+        let name = event.agent || 'Unknown Agent';
+        let summary = '';
         let result = '';
-        
-        // Get truncated args
-        if (attrs['gcp.vertex.agent.tool_call_args']) {
-            try {
-                const argsObj = JSON.parse(attrs['gcp.vertex.agent.tool_call_args']);
-                const argsStr = JSON.stringify(argsObj);
-                args = argsStr.length > 120 ? argsStr.substring(0, 120) + '...' : argsStr;
-            } catch (e) {
-                const argsStr = attrs['gcp.vertex.agent.tool_call_args'];
-                args = argsStr.length > 120 ? argsStr.substring(0, 120) + '...' : argsStr;
-            }
+        let details = '';
+
+        switch (event.type) {
+            case 'function_call':
+                name = `${event.agent} → ${event.name}`;
+                summary = event.args ? JSON.stringify(event.args).substring(0, 100) + '...' : '';
+                details = event.args ? JSON.stringify(event.args, null, 2) : '';
+                break;
+            case 'function_response':
+                name = `${event.agent} ← ${event.name}`;
+                result = event.response ? JSON.stringify(event.response).substring(0, 50) + '...' : '';
+                details = event.response ? JSON.stringify(event.response, null, 2) : '';
+                break;
+            case 'text':
+                name = event.agent || 'Agent Response';
+                result = event.content.substring(0, 100) + (event.content.length > 100 ? '...' : '');
+                details = event.content;
+                break;
         }
-        
-        // Get truncated result
-        const toolResponse = attrs['gcp.vertex.agent.tool_response'];
-        const llmResponse = attrs['gcp.vertex.agent.llm_response'];
-        
-        if (toolResponse && toolResponse !== '{}') {
-            try {
-                const responseObj = JSON.parse(toolResponse);
-                if (responseObj.status) {
-                    result = responseObj.status;
-                } else {
-                    const responseStr = JSON.stringify(responseObj);
-                    result = responseStr.length > 30 ? responseStr.substring(0, 30) + '...' : responseStr;
-                }
-            } catch (e) {
-                result = toolResponse.length > 30 ? toolResponse.substring(0, 30) + '...' : toolResponse;
-            }
-        } else if (llmResponse && llmResponse !== '{}') {
-            try {
-                const responseObj = JSON.parse(llmResponse);
-                if (responseObj.content && responseObj.content.parts) {
-                    // Check for text content
-                    const textParts = responseObj.content.parts
-                        .filter(part => part.text && part.text.trim())
-                        .map(part => part.text.trim())
-                        .join(' ');
-                    
-                    // Check for function calls
-                    const functionCalls = responseObj.content.parts
-                        .filter(part => part.function_call)
-                        .map(part => part.function_call.name)
-                        .join(', ');
-                    
-                                    if (textParts) {
-                    result = textParts; // Show full text for LLM responses
-                } else if (functionCalls) {
-                    result = `calls: ${functionCalls}`;
-                }
-                }
-            } catch (e) {
-                result = llmResponse.length > 30 ? llmResponse.substring(0, 30) + '...' : llmResponse;
-            }
-        }
-        
-        return { args, result };
+
+        return { name, summary, result, details };
     }
 
-    // Get type label
-    function getTypeLabel(type) {
+    // Get event type label
+    function getEventTypeLabel(type) {
         switch (type) {
-            case 'tool': return 'Tool';
-            case 'llm': return 'Model';
-            case 'agent': return 'Agent';
-            default: return 'Type';
+            case 'function_call': return 'Function Call';
+            case 'function_response': return 'Function Response';
+            case 'text': return 'Text Response';
+            default: return 'Event';
         }
     }
 
@@ -681,6 +711,7 @@
     // Add status message
     function addStatusMessage(html) {
         statusMessage.innerHTML = html;
+        statusMessage.style.display = 'block';
     }
 
     // Show final summary
@@ -716,10 +747,12 @@
         
         // Clear state
         logEntriesContainer.innerHTML = '';
-        displayedSpanIds.clear();
-        allSpans = [];
-        expandedSpans.clear();
+        displayedEvents.clear();
+        allEvents = [];
+        expandedEvents.clear();
         agentRunCompleted = false;
+        currentAgent = '';
+        accumulatedText = '';
         
         // Reset status message
         statusMessage.innerHTML = '<i class="fas fa-clock me-2"></i>Ready to process commits. Enter a commit hash above to begin.';
@@ -729,11 +762,8 @@
         document.getElementById('final-summary-container').style.display = 'none';
         document.getElementById('error-container').style.display = 'none';
         
-        // Stop polling
-        if (pollingInterval) {
-            clearInterval(pollingInterval);
-            pollingInterval = null;
-        }
+        // Note: SSE connection will close automatically when the stream ends
+        eventSource = null;
     }
 
     // Event Listeners
@@ -744,8 +774,6 @@
             await startProcessing(commitHash);
         }
     });
-
-
 
     // Auto-format commit hash input
     commitHashInput.addEventListener('input', function(e) {

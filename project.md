@@ -39,16 +39,16 @@ automatic monitoring: automatically monitor newest commits, send them to agent
 
 TODO: 
 
-- manually port commits before v0.5.0, then release v0.5.0
-- process one commit correctly and publish it, starting with this commit after v0.5.0 : 2cbbf881353835ba1c321de865b0f53d1c4540e5
-https://github.com/google/adk-python/commits/main/?before=f0183a9b98b0bcf8aab4f948f467cef204ddc9d6+525
+- ui : check recent fullstack example, don't use traces, get session events. https://github.com/google/adk-samples/blob/main/python/agents/gemini-fullstack/frontend/src/App.tsx
 
+- process one commit correctly and publish it, starting with this commit : 5b3204c356c4a13a661038cc2a77ebf336d0a112 / https://github.com/google/adk-python/commits/main/?before=f0183a9b98b0bcf8aab4f948f467cef204ddc9d6+455
 
-- battle hardening: process commits until v1.4.1 and troubleshoot issues along the way. try claude models 
+- battle hardening: process commits until v1.0.0 and troubleshoot issues along the way.
+        try claude models 
+        include chats of cursor porting commits correctly 
+        emulate cursor prompt and tools : https://github.com/x1xhlol/system-prompts-and-models-of-ai-tools/blob/main/Cursor%20Prompts/Agent%20Prompt%20v1.0.txt
 
-
-- monitoring : set up automatic processing of commits, one after one in a queue when the current one gets approved 
-
+- simple automatic monitoring 
 
 
 

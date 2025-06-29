@@ -3,9 +3,10 @@ import sys
 import requests
 import json
 import re
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from datetime import datetime
 from typing import Dict, Any
+import uuid
 
 # Add parent directory to Python path to allow imports from utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,33 +45,11 @@ def index():
     """Main page."""
     return render_template('index.html', adk_api_url=ADK_API_URL)
 
-@app.route('/api/trace/<session_id>')
-def api_get_trace(session_id):
-    """
-    Proxy route to get trace data from ADK server.
-    This avoids CORS issues by making the request server-side.
-    """
-    try:
-        response = requests.get(
-            f"{ADK_API_URL}/debug/trace/session/{session_id}",
-            timeout=10
-        )
-        print(response.json())
-        if response.status_code == 200:
-            return jsonify(response.json())
-        elif response.status_code == 404:
-            return jsonify([]), 404
-        else:
-            return jsonify({"error": f"ADK server returned {response.status_code}"}), response.status_code
-            
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to connect to ADK server: {e}"}), 500
-
 @app.route('/api/start_processing', methods=['POST'])
 def api_start_processing():
     """
-    Creates the ADK session and triggers the agent run in a fire-and-forget way.
-    Returns the session_id for the client to poll the trace endpoint directly.
+    Creates the ADK session and starts processing with SSE streaming.
+    Returns a streaming response with session events.
     """
     data = request.get_json()
     commit_hash = data.get('commit_hash', '').strip()
@@ -85,69 +64,102 @@ def api_start_processing():
     
     # Generate unique IDs for this run
     user_id = f"web-ui-user-{commit_hash[:7]}"
+    session_id = str(uuid.uuid4())
     
-    try:
-        # Step 1: Create the session
-        session_payload = {
-            "state": {
-                "commit_hash": commit_hash
-            }
-        }
-        
-        session_response = requests.post(
-            f"{ADK_API_URL}/apps/{ADK_APP_NAME}/users/{user_id}/sessions",
-            json=session_payload,
-            timeout=10
-        )
-        
-        if session_response.status_code != 200:
-            error_msg = f"Failed to create session: {session_response.status_code} - {session_response.text}"
-            return jsonify({"success": False, "error": error_msg}), 500
-            
-        session_data = session_response.json()
-        session_id = session_data.get('id')
-        
-        if not session_id:
-            return jsonify({"success": False, "error": "No session ID returned from ADK server"}), 500
-        
-        # Step 2: Trigger the agent run (fire-and-forget with short timeout)
-        run_payload = {
-            "app_name": ADK_APP_NAME,
-            "user_id": user_id,
-            "session_id": session_id,
-            "streaming": False,
-            "new_message": {
-                "role": "user",
-                "parts": [{"text": json.dumps({"commit_id": commit_hash})}]
-            }
-        }
-        
-        # Make the request with a very short timeout - we don't wait for completion
-        # The ADK server will start processing in the background
+    def generate_events():
         try:
-            requests.post(
-                f"{ADK_API_URL}/run",
-                json=run_payload,
-                timeout=2  # Very short timeout - just to send the request
+            # Step 1: Create the session
+            session_payload = {
+                "state": {
+                    "commit_hash": commit_hash
+                }
+            }
+            
+            session_response = requests.post(
+                f"{ADK_API_URL}/apps/{ADK_APP_NAME}/users/{user_id}/sessions/{session_id}",
+                json=session_payload,
+                timeout=10
             )
-        except requests.exceptions.Timeout:
-            # This is expected and OK - we don't want to wait for completion
-            pass
+            
+            if session_response.status_code != 200:
+                error_msg = f"Failed to create session: {session_response.status_code} - {session_response.text}"
+                yield f"event: error\ndata: {json.dumps({'error': error_msg})}\n\n"
+                return
+                
+            # Send session created event
+            yield f"event: session_created\ndata: {json.dumps({'session_id': session_id, 'user_id': user_id, 'commit_hash': commit_hash})}\n\n"
+            
+            # Step 2: Start the agent run with SSE streaming
+            run_payload = {
+                "appName": ADK_APP_NAME,
+                "userId": user_id,
+                "sessionId": session_id,
+                "streaming": False,
+                "newMessage": {
+                    "role": "user",
+                    "parts": [{"text": json.dumps({"commit_id": commit_hash})}]
+                }
+            }
+            
+            # Make the streaming request to ADK
+            response = requests.post(
+                f"{ADK_API_URL}/run_sse",
+                json=run_payload,
+                stream=True,
+                timeout=300  # 5 minute timeout for the entire operation
+            )
+            
+            if response.status_code != 200:
+                error_msg = f"Failed to start agent: {response.status_code} - {response.text}"
+                yield f"event: error\ndata: {json.dumps({'error': error_msg})}\n\n"
+                return
+            
+            # Stream the response from ADK to the client
+            line_buffer = ""
+            event_data_buffer = ""
+            
+            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                if chunk:
+                    line_buffer += chunk
+                    
+                    # Process complete lines
+                    while '\n' in line_buffer:
+                        line, line_buffer = line_buffer.split('\n', 1)
+                        
+                        if line.strip() == "":  # Empty line: dispatch event
+                            if event_data_buffer.strip():
+                                # Forward the event data to the client
+                                yield f"data: {event_data_buffer.strip()}\n\n"
+                                event_data_buffer = ""
+                        elif line.startswith('data:'):
+                            event_data_buffer += line[5:].strip() + '\n'
+                        elif line.startswith(':'):
+                            # Comment line, ignore
+                            pass
+                        # Other SSE fields can be handled here if needed
+            
+            # Handle any remaining data
+            if event_data_buffer.strip():
+                yield f"data: {event_data_buffer.strip()}\n\n"
+                
+            # Send completion event
+            yield f"event: complete\ndata: {json.dumps({'status': 'completed'})}\n\n"
+            
         except requests.exceptions.RequestException as e:
-            # Only fail if we can't send the request at all
-            return jsonify({"success": False, "error": f"Failed to start agent: {e}"}), 500
-        
-        return jsonify({
-            "success": True,
-            "session_id": session_id,
-            "user_id": user_id,
-            "commit_hash": commit_hash
-        })
-        
-    except requests.exceptions.RequestException as e:
-        return jsonify({"success": False, "error": f"Failed to communicate with ADK server: {e}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "error": f"Unexpected error: {e}"}), 500
+            yield f"event: error\ndata: {json.dumps({'error': f'Failed to communicate with ADK server: {e}'})}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': f'Unexpected error: {e}'})}\n\n"
+
+    return Response(
+        generate_events(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Cache-Control'
+        }
+    )
 
 # ==============================================================================
 # MAIN APPLICATION
