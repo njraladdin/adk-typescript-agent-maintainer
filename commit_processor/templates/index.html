@@ -23,6 +23,12 @@
             --success-color: #10b981;
             --warning-color: #f59e0b;
             --error-color: #ef4444;
+            --agent-bg: #f0f9ff;
+            --agent-border: #0ea5e9;
+            --action-bg: #fefce8;
+            --action-border: #eab308;
+            --function-bg: #f3e8ff;
+            --function-border: #a855f7;
         }
         
         body {
@@ -89,17 +95,154 @@
             display: none;
         }
 
-        .log-entry {
-            border-bottom: 1px solid var(--border-color);
+        /* Modern message styling */
+        .message-bubble {
+            margin: 6px 0;
+            padding: 0;
+            border: none;
+            background: none;
+            cursor: default;
+        }
+
+        .message-content {
+            background-color: transparent;
+            border: 1px solid #f1f5f9;
+            border-radius: 6px;
             padding: 12px 16px;
+            position: relative;
+            font-size: 13px;
+        }
+
+        /* Agent message styling */
+        .agent-message .message-content {
+            border-left: 2px solid #0ea5e9;
+        }
+
+        /* Function call styling */
+        .function-call .message-content {
+            border-left: 2px solid #f59e0b;
+        }
+
+        /* Function response styling */
+        .function-response .message-content {
+            border-left: 2px solid #22c55e;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .message-icon {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .agent-message .message-icon {
+            background-color: #0ea5e9;
+        }
+
+        .function-call .message-icon {
+            background-color: #f59e0b;
+        }
+
+        .function-response .message-icon {
+            background-color: #22c55e;
+        }
+
+        .message-title {
+            font-weight: 500;
+            color: #1e293b;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+        }
+
+        .message-timestamp {
+            color: #94a3b8;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 10px;
+            margin-left: auto;
+            font-weight: 400;
+        }
+
+        .message-body {
+            color: #475569;
+            line-height: 1.4;
+            font-size: 13px;
+        }
+
+        .message-details {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background-color: #f8fafc;
+            border-radius: 4px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .status-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-success {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .status-error {
+            background-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .status-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .code-block {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 11px;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 10px 12px;
+            color: #64748b;
+            max-height: 250px;
+            overflow-y: auto;
+            line-height: 1.3;
+            white-space: pre-wrap;
+            font-weight: 400;
+        }
+
+        #log-container {
+            background-color: transparent;
+            border: none;
+            border-radius: 8px;
+            overflow: hidden;
+            padding: 8px;
+        }
+
+        /* Legacy styles for backward compatibility */
+        .log-entry {
+            border-bottom: none;
+            padding: 0;
             margin: 0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            background-color: var(--bg-white);
+            cursor: default;
+            transition: none;
+            background-color: transparent;
         }
         
         .log-entry:hover {
-            background-color: #f1f5f9;
+            background-color: transparent;
         }
         
         .log-entry:last-child {
@@ -111,103 +254,18 @@
         }
 
         .log-entry.expanded {
-            background-color: #f8fafc;
-            border-left: 3px solid var(--primary-color);
-            padding-left: 13px;
+            background-color: transparent;
+            border-left: none;
+            padding-left: 0;
         }
 
-        .toggle-arrow {
-            transition: transform 0.15s ease;
-            font-size: 12px;
-            color: var(--text-light);
-            width: 12px;
+        /* Status message styling */
+        #status-message {
             text-align: center;
-        }
-        
-        .log-entry.expanded .toggle-arrow {
-            transform: rotate(90deg);
-            color: var(--primary-color);
-        }
-
-        .log-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            padding: 24px;
+            color: #94a3b8;
             font-size: 13px;
-        }
-
-        .log-timestamp {
-            color: var(--text-light);
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-            font-size: 11px;
-            min-width: 72px;
-            font-weight: 500;
-        }
-
-        .log-name {
-            font-weight: 500;
-            color: var(--text-color);
-        }
-
-        .log-args {
-            color: var(--text-muted);
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-            font-size: 11px;
-        }
-
-        .log-result {
-            color: var(--text-muted);
-            font-size: 12px;
-        }
-
-        .log-arrow {
-            color: var(--text-light);
-            font-size: 12px;
-            margin: 0 4px;
-        }
-
-
-        #log-container {
-            background-color: var(--bg-white);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .full-details {
-            margin-top: 12px;
-            padding: 16px;
-            background-color: #f8fafc;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .detail-section {
-            margin-bottom: 12px;
-        }
-
-        .detail-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .detail-label {
-            font-weight: 500;
-            color: var(--text-color);
-            font-size: 12px;
-            margin-bottom: 4px;
-        }
-
-        .detail-content {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-            font-size: 11px;
-            background-color: var(--bg-white);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 12px;
-            color: var(--text-muted);
-            max-height: 200px;
-            overflow-y: auto;
-            line-height: 1.4;
+            font-weight: 400;
         }
     </style>
 </head>
@@ -270,13 +328,13 @@
                                 <span id="connection-status" class="badge bg-warning" style="font-size: 11px; padding: 4px 8px;">Waiting...</span>
                             </div>
                             
-                            <!-- Live trace container -->
-                        <div id="log-container" style="height: 700px; overflow-y: auto;">
-                                <div id="log-entries"></div>
-                                <div id="status-message" class="text-muted p-4" style="font-size: 13px;">
-                                    <i class="fas fa-clock me-2"></i>Ready to process commits. Enter a commit hash above to begin.
-                                </div>
+                                                    <!-- Live trace container -->
+                    <div id="log-container" style="height: 900px; overflow-y: auto;">
+                            <div id="log-entries"></div>
+                            <div id="status-message" class="text-muted p-4" style="font-size: 13px;">
+                                <i class="fas fa-clock me-2"></i>Ready to process commits. Enter a commit hash above to begin.
                             </div>
+                        </div>
                             
                             <!-- Final summary (hidden initially) -->
                             <div id="final-summary-container" class="mt-4" style="display: none;">
@@ -610,86 +668,87 @@
     // Display event in the UI
     function displayEvent(event) {
         const eventDiv = document.createElement('div');
-        const isExpanded = expandedEvents.has(event.id);
-        eventDiv.className = isExpanded ? 'log-entry expanded' : 'log-entry collapsed';
+        eventDiv.className = `message-bubble ${getMessageType(event.type)}`;
         eventDiv.id = `event-${event.id}`;
         
         const timestamp = new Date(event.timestamp).toLocaleTimeString();
         const eventInfo = getEventInfo(event);
         
-        // Build compact summary
-        let content = `<div class="log-header">
-            <i class="fas fa-chevron-right toggle-arrow"></i>
-            <div class="log-timestamp">${timestamp}</div>
-            <div class="log-name">${escapeHtml(eventInfo.name)}</div>`;
+        let content = `
+            <div class="message-content">
+                <div class="message-header">
+                    <div class="message-icon"></div>
+                    <div class="message-title">${escapeHtml(eventInfo.name)}</div>
+                    <div class="message-timestamp">${timestamp}</div>
+                </div>
+                <div class="message-body">`;
         
-        if (eventInfo.summary) {
-            content += `<div class="log-args">${escapeHtml(eventInfo.summary)}</div>`;
-        }
-        
+        // Add main result/content
         if (eventInfo.result) {
-            content += `<span class="log-arrow">→</span><div class="log-result">${escapeHtml(eventInfo.result)}</div>`;
+            // Check if result contains HTML (status tags)
+            if (eventInfo.result.includes('<span class="status-tag')) {
+                content += `<div>${eventInfo.result}</div>`;
+            } else {
+                content += `<div>${escapeHtml(eventInfo.result)}</div>`;
+            }
         }
         
-        content += `</div>`;
-        
-        // Add full details (hidden by default)
-        content += `<div class="full-details">`;
-        
+        // Add details if available
         if (eventInfo.details) {
-            content += `<div class="detail-section">
-                <div class="detail-label">${getEventTypeLabel(event.type)}</div>
-                <div class="detail-content">${escapeHtml(eventInfo.details)}</div>
-            </div>`;
+            content += `
+                <div class="message-details">
+                    <div class="code-block">${escapeHtml(eventInfo.details)}</div>
+                </div>`;
         }
         
-        content += `</div>`;
+        content += `
+                </div>
+            </div>`;
         
         eventDiv.innerHTML = content;
-        
-        // Add click handler for expand/collapse
-        eventDiv.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (expandedEvents.has(event.id)) {
-                expandedEvents.delete(event.id);
-                eventDiv.classList.remove('expanded');
-                eventDiv.classList.add('collapsed');
-            } else {
-                expandedEvents.add(event.id);
-                eventDiv.classList.remove('collapsed');
-                eventDiv.classList.add('expanded');
-            }
-        });
-        
         logEntriesContainer.appendChild(eventDiv);
     }
 
     // Get event info for display
     function getEventInfo(event) {
         let name = event.agent || 'Unknown Agent';
-        let summary = '';
         let result = '';
         let details = '';
 
         switch (event.type) {
             case 'function_call':
-                name = `${event.agent} → ${event.name}`;
-                summary = event.args ? JSON.stringify(event.args).substring(0, 100) + '...' : '';
-                details = event.args ? JSON.stringify(event.args, null, 2) : '';
+                name = `Function Call: ${event.name}`;
+                result = ''; // No preview, just show details
+                details = event.args ? JSON.stringify(event.args, null, 2) : 'No arguments';
                 break;
             case 'function_response':
-                name = `${event.agent} ← ${event.name}`;
-                result = event.response ? JSON.stringify(event.response).substring(0, 50) + '...' : '';
-                details = event.response ? JSON.stringify(event.response, null, 2) : '';
+                name = `Function Result: ${event.name}`;
+                if (event.response) {
+                    try {
+                        const resp = typeof event.response === 'string' ? JSON.parse(event.response) : event.response;
+                        if (resp.status) {
+                            result = `<span class="status-tag ${resp.status === 'success' ? 'status-success' : resp.status === 'error' ? 'status-error' : 'status-pending'}">${resp.status}</span>`;
+                        } else {
+                            result = '<span class="status-tag status-success">completed</span>';
+                        }
+                        details = JSON.stringify(resp, null, 2);
+                    } catch (e) {
+                        result = '<span class="status-tag status-success">completed</span>';
+                        details = event.response;
+                    }
+                } else {
+                    result = '<span class="status-tag status-error">no data</span>';
+                    details = '';
+                }
                 break;
             case 'text':
-                name = event.agent || 'Agent Response';
-                result = event.content.substring(0, 100) + (event.content.length > 100 ? '...' : '');
-                details = event.content;
+                name = `Agent: ${event.agent || 'Response'}`;
+                result = event.content;
+                details = '';
                 break;
         }
 
-        return { name, summary, result, details };
+        return { name, result, details };
     }
 
     // Get event type label
@@ -701,6 +760,18 @@
             default: return 'Event';
         }
     }
+
+    // Get message type for CSS class
+    function getMessageType(type) {
+        switch (type) {
+            case 'function_call': return 'function-call action-message';
+            case 'function_response': return 'function-response action-message';
+            case 'text': return 'agent-message';
+            default: return 'agent-message';
+        }
+    }
+
+
 
     // Update connection status badge
     function updateConnectionStatus(text, type) {
